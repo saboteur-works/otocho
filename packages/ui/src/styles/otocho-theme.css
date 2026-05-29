@@ -1,0 +1,14 @@
+/*
+ * otocho-theme.css — SAB/works product theme.
+ *
+ * Per saboteur-styles docs/products.md: import saboteur-base first, define
+ * ONLY what differs, use the --color-otocho-* namespace, add no new
+ * chromatic colors (warm neutral surface variants are permitted).
+ *
+ * Otocho follows the SAB/works dark-first base palette. The one product
+ * addition is a warm writing surface for page canvases (Notes, Build log
+ * sketch), in the spirit of GetWrite's paper model.
+ */
+@theme {
+  --color-otocho-canvas: #16150f; /* bg-otocho-canvas | Warm dark writing surface for page bodies. */
+}

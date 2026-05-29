@@ -1,0 +1,71 @@
+@import "tailwindcss";
+@import "saboteur-styles/styles/saboteur-base.css";
+@import "./otocho-theme.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * shadcn/ui design-token bridge.
+ *
+ * shadcn components reference semantic variables (--background, --primary,
+ * --ring, …). We ALIAS those onto saboteur brand tokens here — we never
+ * redefine the brand tokens themselves. This keeps shadcn components stock
+ * (so `shadcn add` keeps working) while rendering them in the brand system.
+ *
+ * Color roles follow saboteur rules: dark-first surfaces, Signal Red reserved
+ * for interaction (primary / ring / destructive), text only from the fg-* scale.
+ */
+:root {
+  --background: var(--color-brand-black);
+  --foreground: var(--color-fg-primary);
+  --card: var(--color-brand-surface);
+  --card-foreground: var(--color-fg-primary);
+  --popover: var(--color-brand-surface2);
+  --popover-foreground: var(--color-fg-primary);
+  --primary: var(--color-interactive);
+  --primary-foreground: var(--color-brand-white);
+  --secondary: var(--color-brand-surface);
+  --secondary-foreground: var(--color-fg-primary);
+  --muted: var(--color-brand-surface);
+  --muted-foreground: var(--color-fg-tertiary);
+  --accent: var(--color-brand-surface2);
+  --accent-foreground: var(--color-fg-primary);
+  --destructive: var(--color-brand-red);
+  --destructive-foreground: var(--color-brand-white);
+  --border: var(--color-brand-dim);
+  --input: var(--color-brand-dim);
+  --ring: var(--color-interactive);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-fg-secondary);
+    font-family: var(--font-sans);
+  }
+}

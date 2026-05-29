@@ -1,0 +1,5 @@
+@import "@otocho/ui/styles.css";
+
+/* @otocho/ui resolves through node_modules (workspace symlink), which Tailwind
+   ignores by default — scan its real source so component classes are emitted. */
+@source "../../../packages/ui/src";

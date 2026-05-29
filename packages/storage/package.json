@@ -1,0 +1,14 @@
+{
+  "name": "@otocho/storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Storage port and platform adapters (local-first, file-per-record). Sync rides on top of this seam.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./web": "./src/web-adapter.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

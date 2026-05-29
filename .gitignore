@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+storybook-static/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Capacitor / Electron native build output (added when those targets are wired)
+apps/mobile/ios/
+apps/mobile/android/
+apps/desktop/out/
+apps/desktop/dist/

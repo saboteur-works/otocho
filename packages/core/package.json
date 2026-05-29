@@ -1,0 +1,16 @@
+{
+  "name": "@otocho/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Platform-agnostic domain model and business logic for Otocho.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@otocho/storage": "workspace:*"
+  }
+}
