@@ -9,6 +9,7 @@ export interface UsePages {
   create: (type: PageType, title?: string) => Promise<Page>;
   rename: (id: string, title: string) => Promise<void>;
   reorder: (id: string, newIndex: number) => Promise<void>;
+  updatePage: (page: Page) => Promise<void>;
   deletePage: (id: string) => Promise<void>;
 }
 
@@ -58,6 +59,14 @@ export function usePages(
     [repo, refresh],
   );
 
+  const updatePage = useCallback(
+    async (page: Page) => {
+      const updated = await repo.update(page);
+      setPages((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    },
+    [repo],
+  );
+
   const deletePage = useCallback(
     async (id: string) => {
       await repo.delete(id);
@@ -66,5 +75,5 @@ export function usePages(
     [repo, refresh],
   );
 
-  return { pages, loading, refresh, create, rename, reorder, deletePage };
+  return { pages, loading, refresh, create, rename, reorder, updatePage, deletePage };
 }

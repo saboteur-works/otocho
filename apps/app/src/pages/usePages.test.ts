@@ -59,6 +59,19 @@ describe("usePages", () => {
     expect(result.current.pages).toHaveLength(0);
   });
 
+  it("updatePage persists changes and reflects them in the list", async () => {
+    const repo = makeRepo();
+    await repo.create("proj1", "notes", "My notes");
+    const { result } = renderHook(() => usePages("proj1", repo));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const page = result.current.pages[0];
+    const updated = { ...page, body: "new body" } as import("@otocho/core").NotesPage;
+    await act(async () => { await result.current.updatePage(updated); });
+
+    expect((result.current.pages[0] as import("@otocho/core").NotesPage).body).toBe("new body");
+  });
+
   it("reorders pages and reflects the new order", async () => {
     const repo = makeRepo();
     await repo.create("proj1", "notes", "A");

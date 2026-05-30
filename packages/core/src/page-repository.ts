@@ -96,6 +96,12 @@ export class PageRepository {
     return updated;
   }
 
+  /** Persist updated page content. `updatedAt` is always refreshed. */
+  async update(page: Page): Promise<Page> {
+    await this.require(page.id);
+    return this.save({ ...page, updatedAt: this.now() });
+  }
+
   async delete(id: string): Promise<void> {
     await this.require(id);
     await this.storage.remove(COLLECTION, id);

@@ -109,6 +109,23 @@ describe("PageRepository", () => {
     await expect(repo.rename("nope", "X")).rejects.toThrow(/not found/i);
   });
 
+  it("update persists content changes and advances updatedAt", async () => {
+    const repo = makeRepo();
+    const page = await repo.create("proj1", "notes", "My notes");
+    const withBody = { ...page, body: "some text" } as import("./page").NotesPage;
+    const updated = await repo.update(withBody);
+    expect(updated.updatedAt > page.updatedAt).toBe(true);
+    const fetched = await repo.get(page.id);
+    expect((fetched as import("./page").NotesPage).body).toBe("some text");
+  });
+
+  it("update throws for a missing page", async () => {
+    const repo = makeRepo();
+    const page = await repo.create("proj1", "notes");
+    await repo.delete(page.id);
+    await expect(repo.update(page)).rejects.toThrow(/not found/i);
+  });
+
   it("deletes a page permanently", async () => {
     const page = await repo.create("proj1", "notes");
     await repo.delete(page.id);

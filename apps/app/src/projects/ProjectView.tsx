@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { PageRepository, ProjectRepository, type Page, type PageType } from "@otocho/core";
+import { PageRepository, ProjectRepository, type NotesPage, type Page, type PageType } from "@otocho/core";
+import { NotesPage as NotesPageEditor } from "../pages/NotesPage";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,7 +41,7 @@ export function ProjectView({
   const [error, setError] = useState<string | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
 
-  const { pages, create, rename, reorder, deletePage } = usePages(id ?? "", pageRepo);
+  const { pages, create, rename, reorder, updatePage, deletePage } = usePages(id ?? "", pageRepo);
 
   useEffect(() => {
     if (!id) { setStatus("missing"); return; }
@@ -190,7 +191,7 @@ export function ProjectView({
             </aside>
 
             <div className="flex flex-1 flex-col p-6">
-              <PageContent page={selectedPage} />
+              <PageContent page={selectedPage} onUpdatePage={updatePage} />
             </div>
           </div>
         </div>
@@ -199,7 +200,13 @@ export function ProjectView({
   );
 }
 
-function PageContent({ page }: { page: Page | null }) {
+function PageContent({
+  page,
+  onUpdatePage,
+}: {
+  page: Page | null;
+  onUpdatePage: (page: Page) => Promise<void>;
+}) {
   if (!page) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -208,17 +215,20 @@ function PageContent({ page }: { page: Page | null }) {
     );
   }
 
-  const label: Record<string, string> = {
-    notes: "Notes",
-    "build-log": "Build log",
-    presets: "Presets",
-  };
+  if (page.type === "notes") {
+    return (
+      <NotesPageEditor
+        page={page as NotesPage}
+        onSave={(body) => onUpdatePage({ ...page, body } as NotesPage)}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-1 flex-col gap-2">
       <h3 className="font-display text-lg font-semibold text-fg-primary">{page.title}</h3>
       <p className="text-sm text-fg-tertiary">
-        {label[page.type]} editor — coming in a later task.
+        {page.type === "build-log" ? "Build log" : "Presets"} editor — coming in a later task.
       </p>
     </div>
   );

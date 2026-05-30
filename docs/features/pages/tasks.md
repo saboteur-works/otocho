@@ -70,8 +70,9 @@ The Projects feature is complete and establishes every pattern Pages reuses:
 **Estimate:** 2
 **Notes:** Reorder writes the `order` field via the repository (Task 3). Mobile structured reorder is out of scope (sync/mobile feature); a desktop/web drag interaction satisfies the FR.
 
-### Task 6: Notes page editor
+### Task 6: Notes page editor ✅
 
+**Status:** Done — 2026-05-29. `apps/app/src/pages/NotesPage.tsx`: full-height textarea on `bg-otocho-canvas`, 400ms debounced autosave, quiet Saving…/Saved indicator, resets body state on page-id change. `PageRepository.update()` added (advances `updatedAt`). `usePages.updatePage()` optimistically updates local state without a full list refresh. `ProjectView.PageContent` now routes `"notes"` pages to `NotesPageEditor`. 80 tests pass; typecheck + build clean.
 **What:** The Notes page — inline free-form text editing that autosaves to the page record.
 **Files:** `apps/app/src/pages/NotesPage.tsx` (new), `packages/ui` (`shadcn add textarea`).
 **Done when:** Opening a Notes page shows its body in an editable area; edits persist inline (no modal) and survive restart. [FR-5, FR-10]
