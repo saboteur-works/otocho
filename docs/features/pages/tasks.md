@@ -89,8 +89,9 @@ The Projects feature is complete and establishes every pattern Pages reuses:
 **Estimate:** 5
 **Notes:** This is the capture-friction proof — quick-append must be one action and lighter than a text file. Moves are append-only (Task 2's append list); union-merge across devices is a later sync concern, not built here.
 
-### Task 8: Presets page
+### Task 8: Presets page ✅
 
+**Status:** Done — 2026-05-29. `apps/app/src/pages/PresetPage.tsx`: horizontal sortable device chain (dnd-kit, 6px threshold) with [+] to add; selected device detail panel with inline-editable name, debounced settings textarea (bg-otocho-canvas), key=value param rows (add/update/delete), AlertDialog-gated device delete. Track name is the page title (rendered as heading). Multiple preset pages per project via the page list. Wired into ProjectView.PageContent. 13 new tests; 105 total pass; typecheck + build clean.
 **What:** The Presets page — a single named track holding an ordered chain of devices, each with a name, optional free-text settings, and optional structured key-value parameter rows.
 **Files:** `apps/app/src/pages/PresetPage.tsx` (new).
 **Done when:** A preset page captures a track name and an ordered device chain; each device has a name, an optional free-text settings field, and optionally addable key-value param rows; the project supports multiple preset pages; all content persists and edits are inline. [FR-8, FR-9, FR-10]

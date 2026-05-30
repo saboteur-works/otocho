@@ -7,9 +7,11 @@ import {
   type NotesPage,
   type Page,
   type PageType,
+  type PresetPage,
 } from "@otocho/core";
 import { NotesPage as NotesPageEditor } from "../pages/NotesPage";
 import { BuildLogPage as BuildLogPageEditor } from "../pages/BuildLogPage";
+import { PresetPage as PresetPageEditor } from "../pages/PresetPage";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -242,11 +244,9 @@ function PageContent({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-2">
-      <h3 className="font-display text-lg font-semibold text-fg-primary">{page.title}</h3>
-      <p className="text-sm text-fg-tertiary">
-        Presets editor — coming in a later task.
-      </p>
-    </div>
+    <PresetPageEditor
+      page={page as PresetPage}
+      onSave={(updated) => onUpdatePage(updated)}
+    />
   );
 }
