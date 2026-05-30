@@ -3,16 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { ProjectRepository } from "@otocho/core";
+import { PageRepository, ProjectRepository } from "@otocho/core";
 import { MemoryStorage } from "../testing/memory-storage";
 import { ProjectView } from "./ProjectView";
 
 function renderAt(repo: ProjectRepository, id: string) {
+  const pageRepo = new PageRepository({ storage: new MemoryStorage() });
   return render(
     <MemoryRouter initialEntries={[`/projects/${id}`]}>
       <Routes>
         <Route path="/" element={<div>All projects home</div>} />
-        <Route path="/projects/:id" element={<ProjectView repo={repo} />} />
+        <Route path="/projects/:id" element={<ProjectView repo={repo} pageRepo={pageRepo} />} />
       </Routes>
     </MemoryRouter>,
   );

@@ -50,8 +50,9 @@ The Projects feature is complete and establishes every pattern Pages reuses:
 **Estimate:** 3
 **Notes:** Store every page as one record in a `pages` collection keyed by page id, each carrying `projectId`; `list(projectId)` filters and sorts by `order`. One-record-per-page keeps future sync conflicts page-scoped (the `StoragePort` seam is built for this).
 
-### Task 4: Page list + management (add / open / rename / delete)
+### Task 4: Page list + management (add / open / rename / delete) ✅
 
+**Status:** Done — 2026-05-29. `apps/app/src/pages/`: `repository.ts` singleton, `usePages.ts` hook (create/rename/deletePage/refresh), `PageList.tsx` (sidebar rail with [+] DropdownMenu type chooser, per-row ⋯ action menu on hover/focus, inline rename, active-page accent). `DropdownMenu` added to `@otocho/ui`. `ProjectView` updated to two-column layout (sidebar + content pane, `selectedPageId` state, per-type placeholder). `App.tsx` restructured: shared narrow header, NarrowContent wrapper for home/trash, WideContent for project view. Navigation model: in-pane state (not nested routes). 70 tests pass; typecheck + build clean.
 **What:** Within an opened project, a list of its pages with add-page (type chooser → created), open, rename, and delete; replaces the `ProjectView` placeholder.
 **Files:** `apps/app/src/pages/repository.ts` (new singleton), `apps/app/src/pages/usePages.ts` (new hook), `apps/app/src/pages/PageList.tsx` (new), `apps/app/src/projects/ProjectView.tsx` (replace the `"Pages arrive in a later feature."` placeholder + add page route/pane), `apps/app/src/App.tsx` (page route if nested-routing chosen), possibly `packages/ui` (`shadcn add dropdown-menu` for the type chooser).
 **Done when:** A project shows its pages ordered; adding a page takes ≤2 interactions (choose type → page created) and opens it; pages can be renamed inline and deleted; all changes persist across restart. [FR-2, FR-3, FR-4, FR-10]

@@ -14,4 +14,12 @@ export {
   AlertDialogAction,
   AlertDialogCancel,
 } from "./components/ui/alert-dialog";
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuPortal,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "./components/ui/dropdown-menu";
 export { cn } from "./lib/utils";
