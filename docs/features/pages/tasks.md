@@ -60,8 +60,9 @@ The Projects feature is complete and establishes every pattern Pages reuses:
 **Estimate:** 5
 **Notes:** Settle the page open/navigation decision here (see cross-cutting). Delete is a plain remove — the spec defines no page-level trash (unlike projects); a confirm prompt is advisable but not required. Inline entry, no modal authoring (FR-10).
 
-### Task 5: Drag-and-drop page reorder
+### Task 5: Drag-and-drop page reorder ✅
 
+**Status:** Done — 2026-05-29. `@dnd-kit/core` + `@dnd-kit/sortable` installed in `apps/app`. `PageList` wrapped in `DndContext`/`SortableContext`; each row is a `useSortable` item with a grip-icon drag handle (6px activation threshold to protect click-to-open). `usePages` gains `reorder(id, newIndex)`. `ProjectView` wires `onReorder`. 71 tests pass; typecheck + build clean.
 **What:** Reordering pages in the list by drag-and-drop, persisted via the repository.
 **Files:** `apps/app/src/pages/PageList.tsx`, `apps/app/package.json` (add a dnd library, e.g. `@dnd-kit/core` + `@dnd-kit/sortable`).
 **Done when:** A page can be dragged to a new position in the list, the new order persists across restart, and the list renders in that order on reload. [FR-3]

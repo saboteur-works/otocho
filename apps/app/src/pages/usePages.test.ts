@@ -59,6 +59,20 @@ describe("usePages", () => {
     expect(result.current.pages).toHaveLength(0);
   });
 
+  it("reorders pages and reflects the new order", async () => {
+    const repo = makeRepo();
+    await repo.create("proj1", "notes", "A");
+    await repo.create("proj1", "build-log", "B");
+    await repo.create("proj1", "presets", "C");
+    const { result } = renderHook(() => usePages("proj1", repo));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const idA = result.current.pages[0].id;
+    await act(async () => { await result.current.reorder(idA, 2); });
+
+    expect(result.current.pages.map((p) => p.title)).toEqual(["B", "C", "A"]);
+  });
+
   it("isolates pages by project", async () => {
     const repo = makeRepo();
     await repo.create("proj1", "notes", "A");

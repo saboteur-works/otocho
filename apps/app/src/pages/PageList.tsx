@@ -1,5 +1,19 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ClipboardList,
   FileText,
   MoreHorizontal,
@@ -36,6 +50,7 @@ export interface PageListProps {
   onCreate: (type: PageType) => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
+  onReorder: (id: string, newIndex: number) => void;
 }
 
 export function PageList({
@@ -45,9 +60,27 @@ export function PageList({
   onCreate,
   onRename,
   onDelete,
+  onReorder,
 }: PageListProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      // Small threshold distinguishes a drag from a click-to-open.
+      activationConstraint: { distance: 6 },
+    }),
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const fromIndex = pages.findIndex((p) => p.id === active.id);
+    const toIndex = pages.findIndex((p) => p.id === over.id);
+    if (fromIndex !== -1 && toIndex !== -1) {
+      onReorder(String(active.id), toIndex);
+    }
+  }
 
   function startRename(page: Page) {
     setDraft(page.title);
@@ -103,60 +136,122 @@ export function PageList({
       {pages.length === 0 ? (
         <p className="px-2 py-4 text-center text-xs text-fg-tertiary">No pages yet.</p>
       ) : (
-        <ul className="flex flex-col gap-0.5">
-          {pages.map((page) => {
-            const Icon = PAGE_TYPE_ICONS[page.type];
-            const isActive = page.id === selectedId;
-            const isEditing = page.id === editingId;
-
-            return (
-              <li key={page.id}>
-                {isEditing ? (
-                  <form
-                    onSubmit={(e) => submitRename(e, page.id)}
-                    className="flex items-center gap-1 px-2 py-1"
-                  >
-                    <Input
-                      aria-label="Page title"
-                      autoFocus
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onKeyDown={onKeyDown}
-                      onBlur={() => cancelRename()}
-                      className="h-6 py-0 text-xs"
-                    />
-                  </form>
-                ) : (
-                  <div
-                    className={[
-                      "group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm",
-                      "transition-colors",
-                      isActive
-                        ? "border-l-2 border-fg-primary bg-surface-hover pl-[6px] text-fg-primary"
-                        : "border-l-2 border-transparent pl-[6px] text-fg-secondary hover:bg-surface-hover hover:text-fg-primary",
-                    ].join(" ")}
-                  >
-                    <button
-                      type="button"
-                      className="flex flex-1 items-center gap-2 overflow-hidden text-left"
-                      onClick={() => onSelect(page)}
-                    >
-                      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-fg-tertiary" />
-                      <span className="truncate">{page.title}</span>
-                    </button>
-
-                    <PageRowMenu
-                      onRename={() => startRename(page)}
-                      onDelete={() => onDelete(page.id)}
-                    />
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={pages.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+            <ul className="flex flex-col gap-0.5">
+              {pages.map((page) => (
+                <SortablePageRow
+                  key={page.id}
+                  page={page}
+                  isActive={page.id === selectedId}
+                  isEditing={page.id === editingId}
+                  draft={draft}
+                  onSelect={onSelect}
+                  onRename={startRename}
+                  onDelete={onDelete}
+                  onDraftChange={setDraft}
+                  onSubmitRename={submitRename}
+                  onKeyDown={onKeyDown}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
       )}
     </nav>
+  );
+}
+
+interface SortablePageRowProps {
+  page: Page;
+  isActive: boolean;
+  isEditing: boolean;
+  draft: string;
+  onSelect: (page: Page) => void;
+  onRename: (page: Page) => void;
+  onDelete: (id: string) => void;
+  onDraftChange: (v: string) => void;
+  onSubmitRename: (e: FormEvent, id: string) => void;
+  onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
+}
+
+function SortablePageRow({
+  page,
+  isActive,
+  isEditing,
+  draft,
+  onSelect,
+  onRename,
+  onDelete,
+  onDraftChange,
+  onSubmitRename,
+  onKeyDown,
+}: SortablePageRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: page.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+  };
+
+  const Icon = PAGE_TYPE_ICONS[page.type];
+
+  return (
+    <li ref={setNodeRef} style={style}>
+      {isEditing ? (
+        <form
+          onSubmit={(e) => onSubmitRename(e, page.id)}
+          className="flex items-center gap-1 px-2 py-1"
+        >
+          <Input
+            aria-label="Page title"
+            autoFocus
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            onBlur={() => onSubmitRename({ preventDefault: () => {} } as FormEvent, page.id)}
+            className="h-6 py-0 text-xs"
+          />
+        </form>
+      ) : (
+        <div
+          className={[
+            "group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+            "transition-colors",
+            isActive
+              ? "border-l-2 border-fg-primary bg-surface-hover pl-[6px] text-fg-primary"
+              : "border-l-2 border-transparent pl-[6px] text-fg-secondary hover:bg-surface-hover hover:text-fg-primary",
+          ].join(" ")}
+        >
+          {/* Drag handle — entire row is draggable via listeners/attributes */}
+          <span
+            {...attributes}
+            {...listeners}
+            className="flex-shrink-0 cursor-grab touch-none text-fg-tertiary active:cursor-grabbing"
+            aria-label="Drag to reorder"
+          >
+            <GripIcon />
+          </span>
+
+          <button
+            type="button"
+            className="flex flex-1 items-center gap-2 overflow-hidden text-left"
+            onClick={() => onSelect(page)}
+          >
+            <Icon className="h-3.5 w-3.5 flex-shrink-0 text-fg-tertiary" />
+            <span className="truncate">{page.title}</span>
+          </button>
+
+          <PageRowMenu onRename={() => onRename(page)} onDelete={() => onDelete(page.id)} />
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -198,5 +293,24 @@ function PageRowMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function GripIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <circle cx="3.5" cy="3" r="1" />
+      <circle cx="3.5" cy="6" r="1" />
+      <circle cx="3.5" cy="9" r="1" />
+      <circle cx="8.5" cy="3" r="1" />
+      <circle cx="8.5" cy="6" r="1" />
+      <circle cx="8.5" cy="9" r="1" />
+    </svg>
   );
 }

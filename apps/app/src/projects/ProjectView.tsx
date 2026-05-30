@@ -40,7 +40,7 @@ export function ProjectView({
   const [error, setError] = useState<string | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
 
-  const { pages, create, rename, deletePage } = usePages(id ?? "", pageRepo);
+  const { pages, create, rename, reorder, deletePage } = usePages(id ?? "", pageRepo);
 
   useEffect(() => {
     if (!id) { setStatus("missing"); return; }
@@ -101,6 +101,10 @@ export function ProjectView({
 
   async function handleDelete(pageId: string) {
     await deletePage(pageId);
+  }
+
+  async function handleReorder(pageId: string, newIndex: number) {
+    await reorder(pageId, newIndex);
   }
 
   const selectedPage = pages.find((p) => p.id === selectedPageId) ?? null;
@@ -181,6 +185,7 @@ export function ProjectView({
                 onCreate={handleCreate}
                 onRename={handleRename}
                 onDelete={handleDelete}
+                onReorder={handleReorder}
               />
             </aside>
 

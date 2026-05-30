@@ -19,6 +19,7 @@ describe("PageList", () => {
         onCreate={vi.fn()}
         onRename={vi.fn()}
         onDelete={vi.fn()}
+        onReorder={vi.fn()}
       />,
     );
     expect(screen.getByText(/no pages yet/i)).toBeTruthy();
@@ -37,6 +38,7 @@ describe("PageList", () => {
         onCreate={vi.fn()}
         onRename={vi.fn()}
         onDelete={vi.fn()}
+        onReorder={vi.fn()}
       />,
     );
     expect(screen.getByText("Notes")).toBeTruthy();
@@ -54,6 +56,7 @@ describe("PageList", () => {
         onCreate={vi.fn()}
         onRename={vi.fn()}
         onDelete={vi.fn()}
+        onReorder={vi.fn()}
       />,
     );
     await userEvent.click(screen.getByText("My notes"));
@@ -70,6 +73,7 @@ describe("PageList", () => {
         onCreate={onCreate}
         onRename={vi.fn()}
         onDelete={vi.fn()}
+        onReorder={vi.fn()}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /add page/i }));
@@ -88,6 +92,7 @@ describe("PageList", () => {
         onCreate={vi.fn()}
         onRename={onRename}
         onDelete={vi.fn()}
+        onReorder={vi.fn()}
       />,
     );
     // Open the ⋯ menu by clicking the actions button (make it visible via fireEvent hover)
@@ -113,6 +118,7 @@ describe("PageList", () => {
         onCreate={vi.fn()}
         onRename={vi.fn()}
         onDelete={onDelete}
+        onReorder={vi.fn()}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /page actions/i }));
@@ -130,6 +136,7 @@ describe("PageList", () => {
         onCreate={vi.fn()}
         onRename={vi.fn()}
         onDelete={vi.fn()}
+        onReorder={vi.fn()}
       />,
     );
     // Active row should have border-fg-primary class
@@ -147,6 +154,7 @@ describe("PageList", () => {
         onCreate={vi.fn()}
         onRename={onRename}
         onDelete={vi.fn()}
+        onReorder={vi.fn()}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /page actions/i }));
