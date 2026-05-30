@@ -1,67 +1,85 @@
 # Build log page — design
 
-**Feature:** Pages · **Phase:** 1 (design) · **Status:** GUIDANCE (locked to implementation in Task 9, FR-11)
+**Feature:** Pages · **Phase:** 2 (implementation) · **Status:** LOCKED — matches shipped implementation (Task 9, FR-11)
 **Spec:** `docs/features/pages/spec.md` — FR-6, FR-7, FR-10
-**Task:** Task 7 (Build log page)
-
-> This document is Phase-1 guidance. The editor may deviate during the build; Task 9 reconciles this doc with what shipped.
+**Impl:** `apps/app/src/pages/BuildLogPage.tsx`
 
 ## Purpose
 
-The Build log records *how a track came together* — both the arrangement/idea sketch and the running sequence of moves that made it work. It is the feature's central bet and its riskiest: the move feed must be filled **mid-flow**, when a producer least wants to stop and type, so single-action capture has to be measurably faster and lighter than a plain text file. If capture is tedious, this page dies.
+The Build log records *how a track came together* — both the arrangement/idea sketch and the running sequence of moves that made it work. The move feed must be filled **mid-flow**, so single-action capture must be measurably faster than a plain text file.
 
 ## Design — stacked: sketch on top, feed below
 
-One page, two sections. The sketch sits on top; the append-only move feed sits below with a persistent quick-add pinned at the bottom. Moves read top-to-bottom as the build story (oldest → newest).
+One page, two sections. The sketch sits on top; the append-only move feed sits below with the quick-add pinned at the bottom inside a bordered container. Moves read top-to-bottom, oldest → newest.
 
 ```
 +-------------------------------------------+
-| Build log: Lead synth                  ⋯  |
+| Build log: Lead synth                     |
 +-------------------------------------------+
-| SKETCH                            (saved) |
-| [ free-text arrangement / idea area ]     |
+| SKETCH                         (Saving…)  |
+| [ plain-text textarea, bg-otocho-canvas ] |
 +-------------------------------------------+
 | MOVES                                     |
-|  ── May 27 ──                             |
-|  14:02   sidechain to kick           [⋯]  |
-|  14:09   +OTT, 20% mix               [⋯]  |
-|  ── May 29 ──                             |
-|  09:11   swapped reverb → plate      [⋯]  |
-|                                           |
-|  > add a move…                       [+]  |
+| ┌─────────────────────────────────────┐   |
+| │  ─── Jan 1 ───                      │   |
+| │  14:02   sidechain to kick    [⋯]   │   |
+| │  14:09   +OTT, 20% mix        [⋯]   │   |
+| │─────────────────────────────────────│   |
+| │  > add a move…              [+]     │   |
+| └─────────────────────────────────────┘   |
 +-------------------------------------------+
 ```
 
 ## Sketch section
 
-- Behaves exactly like the [Notes canvas](notes.md): a plain-text area, debounced autosave, no formatting, whitespace preserved.
-- Holds the arrangement/idea — the slower, more reflective writing. Separate from the fast move feed so the two modes don't interfere.
+Behaves like the [Notes canvas](notes.md): `<textarea>` on `bg-otocho-canvas`, `rows={5}`, `resize-none`, 400ms debounced autosave, `Saving… → Saved` indicator next to the **SKETCH** label. Placeholder: `"Arrangement ideas, references, anything…"`.
+
+Title editing is via the shell's ⋯ context-menu Rename (same as Notes — the editor owns content, the shell owns identity).
 
 ## Move feed
 
-- **Quick-add (the friction-critical interaction).** Type in the always-visible input, press **Enter** to append: the move is saved with an auto-captured timestamp, the input clears and **keeps focus** so several moves can be fired off in a row. `[+]` does the same as Enter. **Shift+Enter** inserts a newline for a multi-line move. This single-action append is the hard acceptance bar for the page (FR-7).
-- **Timestamps.** Captured automatically at append. Moves are grouped under **day dividers** (`── May 27 ──`); each move shows its time.
-- **Order.** Chronological, oldest at top, newest at bottom. Moves are **never reorderable** (FR-7).
-- **Edit / Delete.** Each move's `⋯` menu offers **Edit** (inline, explicit rewrite) and **Delete** (with confirm). These are *explicit, user-initiated* changes — see the FR-7 note below.
+### Quick-add (the friction-critical interaction)
 
-### FR-7 note: "must not be silently rewritten"
+A `<textarea>` (`rows={1}`, `bg-otocho-canvas`) is always pinned at the bottom of the feed container, with a `[+]` (`Plus` icon) button beside it.
 
-FR-7 forbids moves being *reordered* or *silently rewritten*. The operative word is **silently**: the prohibition targets automatic/sync-driven changes happening behind the producer's back, not deliberate user action. An explicit Edit or Delete the producer chooses is not silent and is therefore allowed. Order, however, is locked unconditionally. Implementation must not let any automatic process (including future sync merge) rewrite or reorder a move.
+- **Enter** (without Shift): calls `appendMove(page, text)` from `@otocho/core`, saves, clears the input, and `focus()`s it again for rapid successive entry.
+- **Shift+Enter**: inserts a newline within the move text (normal textarea behaviour).
+- **`[+]` button**: same effect as Enter; disabled when input is empty.
+- Whitespace-only input is rejected (no append, button disabled).
 
-## Data shape
+`appendMove` is a pure function from core that returns a new page with the move appended — timestamped at call time via `newId()` + `new Date().toISOString()`, with a stable UUID.
 
-- Moves are stored as an **append list** on the page record (`{ id, at, text }[]`), which stays merge-friendly for later union-merge sync (a separate feature).
-- Edit and Delete target a move by its **stable id**, never by position — so concurrent appends never disturb the wrong entry.
+### Timestamps and day dividers
+
+Timestamps are auto-captured at append via `new Date().toISOString()`. Display uses `Intl.DateTimeFormat`:
+- **Time** per move: `hour: "2-digit", minute: "2-digit", hour12: false` → `14:02`
+- **Day divider**: `month: "short", day: "numeric"` → `Jan 1`
+
+Day dividers use locale default ordering. Moves within the same calendar day share one divider; a new date starts a new group. Divider style: centered date text flanked by `div` horizontal rules (`bg-brand-rule h-px`), sticky at the top of the scroll container.
+
+### Move order
+
+Chronological, oldest at top, newest at bottom. **Moves are never reorderable** (FR-7).
+
+### Move actions — ⋯ menu (Edit / Delete)
+
+Each move row has a `⋯` (`⋯` character in `font-mono text-xs`) button that is `opacity-0` and becomes visible on `group-hover` / `focus`. Clicking opens a `DropdownMenu`:
+
+- **Edit**: switches the move row to an inline edit form — `<textarea rows={2}>` pre-filled with the move text, a **Save** button, a **Cancel** button. Escape also cancels. On save, the move's `text` is updated by id (order unchanged). This is an *explicit, user-initiated* rewrite — consistent with the FR-7 "silently rewritten" interpretation documented in the spec.
+- **Delete**: opens an `AlertDialog` confirm. On confirm, the move is removed by id. Cancel leaves the feed unchanged.
+
+### Data shape
+
+Moves are stored as `{ id: string, at: string, text: string }[]` on the page record — an append list. Edit and delete target moves by stable `id`, never by array position. This shape is union-merge-friendly for future sync (separate feature).
 
 ## Inline editing (FR-10)
 
-Both sketch edits and move capture happen inline on the page — no modal. Quick-add and the sketch are always present and editable.
+All capture happens inline: the sketch and quick-add are always present; move edit is in-row. No modals for capture (AlertDialog is confirmation-only, not capture).
 
 ## Brand
 
-`font-display` for the page title; `font-mono` uppercase `tracking-label` for the **SKETCH** / **MOVES** headings, day dividers, and move timestamps; `fg-tertiary` for the save indicator and dividers. Tokens per the saboteur-styles source of truth (via `packages/ui`).
+`font-mono text-xs uppercase tracking-label text-fg-tertiary` for **SKETCH** / **MOVES** headings, day dividers, and move timestamps. `font-sans text-sm text-fg-primary` for move body text and textarea content. Canvas areas: `bg-otocho-canvas`. Feed container: `border border-brand-rule rounded-md`. Tokens from `packages/ui` via the saboteur-styles source of truth.
 
-## Open notes for implementation
+## Deferred
 
-- Day-divider style and timestamp format (12h/24h, relative for "today") to be finalized in Task 7.
-- Whether moves collapse/virtualize for very long logs — defer unless it bites.
+Move virtualization for very long logs — deferred; not implemented.

@@ -99,8 +99,9 @@ The Projects feature is complete and establishes every pattern Pages reuses:
 **Estimate:** 5
 **Notes:** Multiple preset pages per project already follow from the page list (Task 4) + repository (Task 3); verify the one-track-per-page scoping holds. Device reordering within the chain reuses the dnd approach from Task 5 if desired (not required by the FR).
 
-### Task 9: Phase 2 — lock design docs to shipped UI
+### Task 9: Phase 2 — lock design docs to shipped UI ✅
 
+**Status:** Done — 2026-05-29. All four design docs updated from GUIDANCE → LOCKED. Key deviations recorded: page-list (⋯ on hover/focus instead of right-click; grip icon always visible; empty state simplified; mobile drawer deferred); notes (title static in editor, editing via shell; last-edited line not shipped); build-log (day-divider style; 24h timestamp format; move edit as textarea+buttons not inline replace); presets (trackName → page title; device rename via click-to-edit not ⋯ menu; add-device does not auto-focus name; param saves are immediate not debounced; data shape documented). Open notes resolved.
 **What:** Update the Phase-1 design docs to match the implemented page UIs, removing the "guidance" label and recording the as-built details.
 **Files:** `docs/features/pages/design/notes.md`, `build-log.md`, `presets.md`, `page-list.md`.
 **Done when:** Each design doc reflects the shipped editor (layout, fields, interactions), is marked locked rather than guidance, and notes any deviation from the Phase-1 draft. [FR-11]

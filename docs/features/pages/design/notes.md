@@ -1,10 +1,8 @@
 # Notes page — design
 
-**Feature:** Pages · **Phase:** 1 (design) · **Status:** GUIDANCE (locked to implementation in Task 9, FR-11)
+**Feature:** Pages · **Phase:** 2 (implementation) · **Status:** LOCKED — matches shipped implementation (Task 9, FR-11)
 **Spec:** `docs/features/pages/spec.md` — FR-5, FR-10
-**Task:** Task 6 (Notes page editor)
-
-> This document is Phase-1 guidance. The editor may deviate during the build; Task 9 reconciles this doc with what shipped.
+**Impl:** `apps/app/src/pages/NotesPage.tsx`
 
 ## Purpose
 
@@ -12,39 +10,56 @@ The Notes page is the catch-all: free-form text for any thought that doesn't fit
 
 ## Design — bare canvas
 
-A single full-bleed plain-text area fills the content pane, under an inline-editable title. No toolbar, no blocks, no formatting.
+A full-height plain-text `<textarea>` on `bg-otocho-canvas`, with a title heading and save indicator above it. No toolbar, no blocks, no formatting.
 
 ```
 +-----------------------------------------------+
-| Notes                              ⋯   (saved) |
+| Notes                              (Saving…)   |
 +-----------------------------------------------+
 |                                               |
 |  Type anything…                               |
 |                                               |
-|  (full-bleed plain-text area, fills the pane, |
-|   grows/scrolls with content)                 |
+|  (full-height plain-text textarea,            |
+|   bg-otocho-canvas, fills the flex column)    |
 |                                               |
 +-----------------------------------------------+
-   Edited 2m ago
 ```
 
 ## Behaviors
 
-- **Plain text only.** No markdown rendering, no rich formatting. Newlines and whitespace are preserved verbatim. (A future page type, not Notes, can carry structure.)
-- **Title.** The heading at the top is the page's canonical name and is editable inline — click to edit, Enter saves, Escape cancels. The shell's context-menu **Rename** edits the same field.
-- **Autosave.** Edits save automatically, debounced (~a few hundred ms after typing stops). A quiet `Saving… → saved` indicator sits near the title; there is no save button. Navigating away never loses unsaved text.
-- **Empty state.** A `Type anything…` placeholder shows when the body is empty. An empty Notes page is valid and persists as-is.
-- **Last-edited.** A quiet `Edited <relative time>` line at the foot of the pane (optional; low emphasis).
+### Title (deviation from Phase-1 design)
+
+**Phase-1 designed:** the heading at the top is editable inline — click to edit, Enter saves, Escape cancels.
+
+**Shipped:** the `NotesPage` component renders the page title as a static `<h3>` (`font-display text-lg font-semibold`). Title editing is handled entirely by the shell's `⋯` context-menu **Rename** action in `PageList`. This is the correct split: the shell owns page identity; the editor owns page content.
+
+### Autosave
+
+Edits save automatically, debounced at **400ms** after typing stops. The save indicator (`font-mono text-xs uppercase tracking-label text-fg-tertiary`) cycles through:
+- *(absent)* — idle, no pending changes
+- `Saving…` — timer running
+- `Saved` — persisted
+
+No save button. Body state resets to the persisted value when a different page is selected (tracked by `pageIdRef`).
+
+### Plain text
+
+No markdown rendering, no rich formatting. Newlines and whitespace preserved verbatim. `<textarea>` is `resize-none` and `flex-1` to fill the column.
+
+### Empty state
+
+`placeholder="Type anything…"` on the textarea. An empty Notes page is valid and persists as-is.
+
+### Last-edited line
+
+**Phase-1 designed:** optional `Edited <relative time>` line at the foot.
+
+**Not shipped.** Dropped for minimalism; deferred to a future iteration.
 
 ## Inline editing (FR-10)
 
-All editing happens directly in the text area — no modal, no separate edit mode. This is the simplest expression of the inline-capture requirement and the baseline the heavier pages (Build log, Presets) are measured against.
+All editing happens directly in the textarea — no modal, no separate edit mode.
 
 ## Brand
 
-`font-display` for the title; body text in the app's reading face; `font-mono` uppercase `tracking-label` and `fg-tertiary` for the save indicator and last-edited line. Tokens per the saboteur-styles source of truth (via `packages/ui`).
-
-## Open notes for implementation
-
-- Exact autosave debounce interval to be tuned in Task 6.
-- Whether the last-edited line ships in MVP or is dropped for minimalism — decide during the build and record in Task 9.
+`font-display text-lg font-semibold text-fg-primary` for the title. Textarea body: `font-sans text-sm leading-relaxed text-fg-primary`. Save indicator: `font-mono text-xs uppercase tracking-label text-fg-tertiary`. Canvas background: `bg-otocho-canvas` (`#16150f`). Tokens from `packages/ui` via the saboteur-styles source of truth.
