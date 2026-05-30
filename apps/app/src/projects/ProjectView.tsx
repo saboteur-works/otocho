@@ -1,7 +1,15 @@
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { PageRepository, ProjectRepository, type NotesPage, type Page, type PageType } from "@otocho/core";
+import {
+  PageRepository,
+  ProjectRepository,
+  type BuildLogPage,
+  type NotesPage,
+  type Page,
+  type PageType,
+} from "@otocho/core";
 import { NotesPage as NotesPageEditor } from "../pages/NotesPage";
+import { BuildLogPage as BuildLogPageEditor } from "../pages/BuildLogPage";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -224,11 +232,20 @@ function PageContent({
     );
   }
 
+  if (page.type === "build-log") {
+    return (
+      <BuildLogPageEditor
+        page={page as BuildLogPage}
+        onSave={(updated) => onUpdatePage(updated)}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-2">
       <h3 className="font-display text-lg font-semibold text-fg-primary">{page.title}</h3>
       <p className="text-sm text-fg-tertiary">
-        {page.type === "build-log" ? "Build log" : "Presets"} editor — coming in a later task.
+        Presets editor — coming in a later task.
       </p>
     </div>
   );

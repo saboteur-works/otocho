@@ -79,8 +79,9 @@ The Projects feature is complete and establishes every pattern Pages reuses:
 **Depends on:** 4
 **Estimate:** 2
 
-### Task 7: Build log page
+### Task 7: Build log page ✅
 
+**Status:** Done — 2026-05-29. `apps/app/src/pages/BuildLogPage.tsx`: two-section layout — sketch textarea (debounced autosave, bg-otocho-canvas) and move feed with day-divider grouping. Quick-add: Enter appends (uses `appendMove` from core, timestamped + id-stable), Shift+Enter = newline, [+] button mirrors Enter. Move ⋯ menu: inline Edit (form with Save/Cancel, Escape cancels), Delete gated by AlertDialog confirm. Moves ordered oldest→newest; never reorderable. Wired into ProjectView.PageContent. 13 new tests covering sketch, append, edit, delete, and cancellation paths; 93 total pass; typecheck + build clean.
 **What:** The Build log page — an editable sketch area plus an append-only, timestamped move feed with a persistent inline quick-add input.
 **Files:** `apps/app/src/pages/BuildLogPage.tsx` (new).
 **Done when:** The page shows an editable sketch area and a move feed; the quick-add input appends a timestamped move in a single action; appended moves are not reorderable or rewritten; sketch edits and moves persist across restart. [FR-6, FR-7, FR-10]
