@@ -30,8 +30,9 @@ The Projects feature is complete and establishes every pattern Pages reuses:
 **Estimate:** 3
 **Notes:** Guidance, not contract — editors (Tasks 6–8) may deviate, and Task 9 reconciles. Wireframes follow the resolved Build-log layout (sketch area above an append-only move feed with an inline quick-add row). Honor saboteur brand tokens already in `packages/ui`.
 
-### Task 2: Page domain model
+### Task 2: Page domain model ✅
 
+**Status:** Done — 2026-05-29. `packages/core/src/page.ts`: `Page` discriminated union (Notes/Build log/Presets) over a shared base (id, projectId, type, title, order, timestamps); `createNotesPage`/`createBuildLogPage`/`createPresetPage` + a `createPage(type,…)` dispatcher; `PAGE_TYPES`; `byOrder` comparator; `appendMove` (pure, timestamped, id'd, append-only per FR-7). Preset track name lives in the shared `title` (single source of truth — design's separate `trackName` reconciled away; record in Task 9). 12 new tests; 41 total pass; typecheck + build clean.
 **What:** A `Page` discriminated union (Notes / Build log / Presets) with shared fields and per-type content, plus factory helpers and an ordering comparator.
 **Files:** `packages/core/src/page.ts` (new), `packages/core/src/index.ts` (export).
 **Done when:** `createNotesPage`/`createBuildLogPage`/`createPresetPage` produce records with `id`, `projectId`, `type`, `title`, `order`, `createdAt`/`updatedAt`, and type-specific content — Notes `{ body }`; Build log `{ sketch, moves: { id, at, text }[] }`; Presets `{ trackName, devices: { id, name, settings?, params?: {key,value}[] }[] }` — with passing unit tests. [FR-1, FR-2, FR-5, FR-6, FR-8]
