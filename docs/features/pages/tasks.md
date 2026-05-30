@@ -40,8 +40,9 @@ The Projects feature is complete and establishes every pattern Pages reuses:
 **Estimate:** 3
 **Notes:** Mirror `project.ts` (Web Crypto `randomUUID`, ISO timestamps, no platform libs). Each page carries an `order` field so reorder (Task 5) is a pure data change. Model `moves` as an append list to keep it merge-friendly later.
 
-### Task 3: Page repository (project-scoped, file-per-page)
+### Task 3: Page repository (project-scoped, file-per-page) ✅
 
+**Status:** Done — 2026-05-29. `packages/core/src/page-repository.ts`: `PageRepository` with `create` (appends at end, auto-order), `get`, `list(projectId)` (filtered + sorted by `byOrder`), `rename` (trims, rejects empty), `reorder` (splice-and-reindex, clamps out-of-bounds), `delete` (permanent, guard throws for missing). 16 new tests; 57 total pass; typecheck clean.
 **What:** A `PageRepository` over the injected `StoragePort` providing project-scoped create / get / list-ordered / rename / reorder / delete.
 **Files:** `packages/core/src/page-repository.ts` (new), `packages/core/src/index.ts` (export).
 **Done when:** Through the repository a page can be created under a project, reloaded across restart with content intact, listed for a single project in `order`, renamed, reordered (new order persists), and deleted; each page persists as its own record. [FR-1, FR-2, FR-3]
