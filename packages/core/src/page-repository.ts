@@ -101,19 +101,14 @@ export class PageRepository {
     return updated;
   }
 
-  /** Persist updated page content. `updatedAt` is always refreshed. */
-  async update(page: Page): Promise<Page> {
-    await this.require(page.id);
-    return this.save({ ...page, updatedAt: this.now() });
-  }
-
   /**
    * Serialized read-merge-write. Reads the freshest stored record, applies a
    * pure transform, refreshes `updatedAt`, and persists the result. Mutations
    * to the same page id run strictly one at a time, so concurrent edits — a
    * debounced field save racing an immediate change, or two field edits in
    * flight together — each merge onto the latest record instead of clobbering
-   * it. One record per page keeps this page-scoped (FR-12).
+   * it. One record per page keeps this page-scoped (FR-12). This is the single
+   * content-write path; `rename` and `reorder` route through it too.
    */
   async mutate(id: string, transform: (page: Page) => Page): Promise<Page> {
     const prior = this.mutations.get(id) ?? Promise.resolve();
@@ -123,7 +118,13 @@ export class PageRepository {
     );
     // Keep the per-id chain alive but swallowed, so one failure doesn't reject
     // the next queued mutation.
-    this.mutations.set(id, result.then(undefined, () => undefined));
+    const tail = result.then(undefined, () => undefined);
+    this.mutations.set(id, tail);
+    // Drop the entry once this tail settles, unless a newer mutation has since
+    // replaced it, so the map doesn't grow unbounded across a long session.
+    void tail.then(() => {
+      if (this.mutations.get(id) === tail) this.mutations.delete(id);
+    });
     return result;
   }
 

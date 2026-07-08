@@ -115,21 +115,20 @@ describe("PageRepository", () => {
     await expect(repo.rename("nope", "X")).rejects.toThrow(/not found/i);
   });
 
-  it("update persists content changes and advances updatedAt", async () => {
+  it("mutate persists content changes and advances updatedAt", async () => {
     const repo = makeRepo();
     const page = await repo.create("proj1", "notes", "My notes");
-    const withBody = { ...page, body: "some text" } as import("./page").NotesPage;
-    const updated = await repo.update(withBody);
+    const updated = await repo.mutate(page.id, (p) => ({ ...(p as NotesPage), body: "some text" }));
     expect(updated.updatedAt > page.updatedAt).toBe(true);
     const fetched = await repo.get(page.id);
-    expect((fetched as import("./page").NotesPage).body).toBe("some text");
+    expect((fetched as NotesPage).body).toBe("some text");
   });
 
-  it("update throws for a missing page", async () => {
+  it("mutate throws for a missing page", async () => {
     const repo = makeRepo();
     const page = await repo.create("proj1", "notes");
     await repo.delete(page.id);
-    await expect(repo.update(page)).rejects.toThrow(/not found/i);
+    await expect(repo.mutate(page.id, (p) => p)).rejects.toThrow(/not found/i);
   });
 
   it("deletes a page permanently", async () => {
@@ -244,6 +243,18 @@ describe("PageRepository.mutate", () => {
     const after = (await repo.get(a.id)) as NotesPage;
     expect(after.order).toBe(1);
     expect(after.body).toBe("edited");
+  });
+
+  it("prunes the per-id chain entry once its mutations settle", async () => {
+    const repo = makeRepo();
+    const page = await repo.create("proj1", "notes", "N");
+    const mutations = (repo as unknown as { mutations: Map<string, unknown> }).mutations;
+
+    await repo.mutate(page.id, (p) => ({ ...p, title: "X" }));
+    // Let the settle-and-prune microtasks run.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mutations.size).toBe(0);
   });
 
   it("keeps the per-id chain alive after a failed mutation", async () => {
