@@ -1,5 +1,5 @@
 import type { NotesPage as NotesPageType } from "@otocho/core";
-import { useAutosave } from "./useAutosave";
+import { saveStateLabel, useAutosave } from "./useAutosave";
 
 export interface NotesPageProps {
   page: NotesPageType;
@@ -13,15 +13,19 @@ export function NotesPage({ page, onSave }: NotesPageProps) {
     page.id,
   );
 
-  const saveLabel =
-    saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : null;
+  const saveLabel = saveStateLabel(saveState);
 
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-lg font-semibold text-fg-primary">{page.title}</h3>
         {saveLabel ? (
-          <span className="font-mono text-xs uppercase tracking-label text-fg-tertiary">
+          <span
+            className={[
+              "font-mono text-xs uppercase tracking-label",
+              saveState === "error" ? "text-destructive" : "text-fg-tertiary",
+            ].join(" ")}
+          >
             {saveLabel}
           </span>
         ) : null}

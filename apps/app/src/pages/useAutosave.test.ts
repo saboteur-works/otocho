@@ -51,6 +51,45 @@ describe("useAutosave", () => {
     expect(save).toHaveBeenCalledWith("abc");
   });
 
+  it("reports 'error' when the debounced save rejects, instead of sticking on 'saving'", async () => {
+    const save = vi.fn().mockRejectedValue(new Error("write failed"));
+    const { result } = renderHook(() => useAutosave("", save, "k1"));
+
+    act(() => result.current[1]("a"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS);
+    });
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.current[2]).toBe("error");
+  });
+
+  it("does not report 'saved' when a slow save resolves after a newer edit", async () => {
+    let resolveFirst!: () => void;
+    const first = new Promise<void>((r) => {
+      resolveFirst = r;
+    });
+    const save = vi.fn().mockReturnValueOnce(first).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useAutosave("", save, "k1"));
+
+    act(() => result.current[1]("a"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS);
+    });
+    expect(result.current[2]).toBe("saving");
+
+    // A newer keystroke arrives before the first (slow) save resolves.
+    act(() => result.current[1]("ab"));
+    expect(result.current[2]).toBe("saving");
+
+    // The stale first save resolving must not flip the indicator to "saved".
+    await act(async () => {
+      resolveFirst();
+      await first;
+    });
+    expect(result.current[2]).toBe("saving");
+  });
+
   it("flushes a pending edit on unmount so the last keystrokes are not dropped", () => {
     const save = vi.fn().mockResolvedValue(undefined);
     const { result, unmount } = renderHook(() => useAutosave("", save, "k1"));

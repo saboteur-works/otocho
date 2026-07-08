@@ -62,8 +62,10 @@ export class PageRepository {
     if (trimmed.length === 0) {
       throw new Error("Page title is required.");
     }
-    const page = await this.require(id);
-    return this.save({ ...page, title: trimmed, updatedAt: this.now() });
+    // Route through the serialized merge write so a rename fired while a field
+    // autosave is in flight merges onto the freshest record instead of
+    // clobbering the just-typed body/params (see {@link mutate}).
+    return this.mutate(id, (page) => ({ ...page, title: trimmed }));
   }
 
   /**
@@ -84,13 +86,14 @@ export class PageRepository {
     const [moved] = reordered.splice(fromIndex, 1);
     reordered.splice(clamped, 0, moved);
 
-    const ts = this.now();
     const updated: Page[] = [];
     for (let i = 0; i < reordered.length; i++) {
       const p = reordered[i];
       if (p.order !== i) {
-        const saved = await this.save({ ...p, order: i, updatedAt: ts });
-        updated.push(saved);
+        // Merge the new order through the serialized write path, so a
+        // concurrent field autosave on this page isn't clobbered by a stale
+        // full-record snapshot (see {@link mutate}).
+        updated.push(await this.mutate(p.id, (fresh) => ({ ...fresh, order: i })));
       } else {
         updated.push(p);
       }

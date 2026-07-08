@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@otocho/ui";
 import { appendMove, editMove, removeMove, type BuildLogPage as BuildLogPageType, type Move } from "@otocho/core";
-import { useAutosave } from "./useAutosave";
+import { saveStateLabel, useAutosave } from "./useAutosave";
 
 export interface BuildLogPageProps {
   page: BuildLogPageType;
@@ -57,8 +57,7 @@ export function BuildLogPage({ page, onSave }: BuildLogPageProps) {
     await onSave((p) => removeMove(p, moveId));
   }
 
-  const sketchLabel =
-    sketchSaveState === "saving" ? "Saving…" : sketchSaveState === "saved" ? "Saved" : null;
+  const sketchLabel = saveStateLabel(sketchSaveState);
 
   const groupedMoves = useMemo(() => groupMovesByDay(page.moves), [page.moves]);
 
@@ -71,7 +70,12 @@ export function BuildLogPage({ page, onSave }: BuildLogPageProps) {
             Sketch
           </span>
           {sketchLabel ? (
-            <span className="font-mono text-xs uppercase tracking-label text-fg-tertiary">
+            <span
+              className={[
+                "font-mono text-xs uppercase tracking-label",
+                sketchSaveState === "error" ? "text-destructive" : "text-fg-tertiary",
+              ].join(" ")}
+            >
               {sketchLabel}
             </span>
           ) : null}

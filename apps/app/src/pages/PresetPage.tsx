@@ -41,7 +41,7 @@ import {
   type PresetPage as PresetPageType,
   type PresetParam,
 } from "@otocho/core";
-import { useAutosave } from "./useAutosave";
+import { saveStateLabel, useAutosave } from "./useAutosave";
 
 export interface PresetPageProps {
   page: PresetPageType;
@@ -58,9 +58,15 @@ export function PresetPage({ page, onSave }: PresetPageProps) {
   const selectedDevice =
     page.devices.find((d) => d.id === selectedDeviceId) ?? page.devices[0] ?? null;
 
-  function handleAddDevice() {
+  async function handleAddDevice() {
     const device = createPresetDevice();
-    void onSave((p) => addDevice(p, device)).then(() => setSelectedDeviceId(device.id));
+    try {
+      await onSave((p) => addDevice(p, device));
+      setSelectedDeviceId(device.id);
+    } catch {
+      // Save failed; leave the selection unchanged rather than focusing a
+      // device that was never persisted.
+    }
   }
 
   return (
@@ -72,7 +78,9 @@ export function PresetPage({ page, onSave }: PresetPageProps) {
         selectedId={selectedDevice?.id ?? null}
         onSelect={setSelectedDeviceId}
         onAdd={handleAddDevice}
-        onReorder={(fromId, toId) => onSave((p) => reorderDevices(p, fromId, toId))}
+        onReorder={(fromId, toId) => {
+          void onSave((p) => reorderDevices(p, fromId, toId)).catch(() => {});
+        }}
       />
 
       {page.devices.length === 0 ? (
@@ -219,8 +227,7 @@ function DeviceDetailPanel({
     device.id,
   );
 
-  const settingsLabel =
-    settingsSaveState === "saving" ? "Saving…" : settingsSaveState === "saved" ? "Saved" : null;
+  const settingsLabel = saveStateLabel(settingsSaveState);
 
   async function submitName(e: FormEvent) {
     e.preventDefault();
@@ -285,7 +292,12 @@ function DeviceDetailPanel({
         <div className="flex items-center justify-between">
           <span className="font-mono text-xs uppercase tracking-label text-fg-tertiary">Settings</span>
           {settingsLabel ? (
-            <span className="font-mono text-xs uppercase tracking-label text-fg-tertiary">
+            <span
+              className={[
+                "font-mono text-xs uppercase tracking-label",
+                settingsSaveState === "error" ? "text-destructive" : "text-fg-tertiary",
+              ].join(" ")}
+            >
               {settingsLabel}
             </span>
           ) : null}
@@ -340,15 +352,16 @@ function ParamRow({
   onUpdate: (patch: Partial<PresetParam>) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
-  const [key, setKey] = useAutosave(param.key, (value) => onUpdate({ key: value }), param.id);
-  const [value, setValue] = useAutosave(param.value, (v) => onUpdate({ value: v }), param.id);
-
+  // Param key/value save immediately on change (no debounce) — each keystroke
+  // in a short, structured field is a discrete intent (locked in
+  // docs/features/pages/design/presets.md). The write still routes through the
+  // serialized merge path via onUpdate → mutatePage.
   return (
     <div role="listitem" className="flex items-center gap-2">
       <input
         aria-label="Parameter key"
-        value={key}
-        onChange={(e) => setKey(e.target.value)}
+        value={param.key}
+        onChange={(e) => void onUpdate({ key: e.target.value })}
         placeholder="key"
         className={[
           "w-32 rounded bg-otocho-canvas px-2 py-1 font-mono text-xs text-fg-primary placeholder:text-fg-tertiary",
@@ -358,8 +371,8 @@ function ParamRow({
       <span className="text-fg-tertiary text-xs">=</span>
       <input
         aria-label="Parameter value"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
+        value={param.value}
+        onChange={(e) => void onUpdate({ value: e.target.value })}
         placeholder="value"
         className={[
           "flex-1 rounded bg-otocho-canvas px-2 py-1 font-mono text-xs text-fg-primary placeholder:text-fg-tertiary",

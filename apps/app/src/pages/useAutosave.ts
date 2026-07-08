@@ -2,7 +2,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export const AUTOSAVE_DELAY_MS = 400;
 
-export type SaveState = "idle" | "saving" | "saved";
+export type SaveState = "idle" | "saving" | "saved" | "error";
+
+/** The quiet indicator text for a save state, or `null` when idle. */
+export function saveStateLabel(state: SaveState): string | null {
+  switch (state) {
+    case "saving":
+      return "Saving…";
+    case "saved":
+      return "Saved";
+    case "error":
+      return "Couldn't save";
+    default:
+      return null;
+  }
+}
 
 /**
  * Debounced autosave for a single free-text field.
@@ -28,14 +42,31 @@ export function useAutosave(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The pending save, captured at edit time so it targets the right record.
   const pendingRef = useRef<(() => Promise<void> | void) | null>(null);
+  // Bumped on every edit and on reset. A save only updates the indicator while
+  // it is still the latest, so a slow save can't report "Saved" over newer
+  // keystrokes, nor report across a page switch.
+  const editSeq = useRef(0);
 
   const runPending = useCallback((report: boolean) => {
     const run = pendingRef.current;
     if (!run) return;
     pendingRef.current = null;
+    const seq = editSeq.current;
     const done = Promise.resolve(run());
-    if (report) void done.then(() => setSaveState("saved"));
-    else void done;
+    if (report) {
+      done.then(
+        () => {
+          if (seq === editSeq.current) setSaveState("saved");
+        },
+        () => {
+          if (seq === editSeq.current) setSaveState("error");
+        },
+      );
+    } else {
+      // Flush on unmount/switch: persist and forget, but swallow rejections so
+      // a failed write can't surface as an unhandled promise rejection.
+      done.catch(() => {});
+    }
   }, []);
 
   const flush = useCallback(() => {
@@ -50,6 +81,7 @@ export function useAutosave(
     (next: string) => {
       setValue(next);
       setSaveState("saving");
+      editSeq.current += 1;
       pendingRef.current = () => save(next);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
@@ -66,6 +98,9 @@ export function useAutosave(
     if (keyRef.current === resetKey) return;
     keyRef.current = resetKey;
     flush();
+    // Invalidate any in-flight save from the previous record so its resolution
+    // can't overwrite the fresh "idle" state with a stale "Saved"/"error".
+    editSeq.current += 1;
     setValue(initial);
     setSaveState("idle");
   }, [resetKey, initial, flush]);

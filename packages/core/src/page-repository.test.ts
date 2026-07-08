@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { StoragePort, StoredRecord } from "@otocho/storage";
 import { PageRepository } from "./page-repository";
-import { addDevice, createPresetDevice, type Page, type PresetPage } from "./page";
+import {
+  addDevice,
+  createPresetDevice,
+  type NotesPage,
+  type Page,
+  type PresetPage,
+} from "./page";
 
 class MemoryStorage implements StoragePort {
   private data = new Map<string, Map<string, StoredRecord>>();
@@ -209,6 +215,35 @@ describe("PageRepository.mutate", () => {
     const after = (await repo.get(page.id)) as PresetPage;
     expect(after.title).toBe("Renamed");
     expect(after.devices.map((d) => d.id)).toEqual(["d1"]);
+  });
+
+  it("rename merges with a concurrent field mutation instead of clobbering it", async () => {
+    const repo = makeRepo();
+    const page = await repo.create("proj1", "notes", "Notes");
+    // A rename fired while an autosave is in flight must not drop the body,
+    // and vice versa — both route through the serialized merge write.
+    await Promise.all([
+      repo.rename(page.id, "New title"),
+      repo.mutate(page.id, (p) => ({ ...(p as NotesPage), body: "typed" })),
+    ]);
+    const after = (await repo.get(page.id)) as NotesPage;
+    expect(after.title).toBe("New title");
+    expect(after.body).toBe("typed");
+  });
+
+  it("reorder merges a concurrent field edit rather than clobbering it", async () => {
+    const repo = makeRepo();
+    const a = await repo.create("proj1", "notes", "A");
+    await repo.create("proj1", "build-log", "B");
+    // Drag-reorder A while its body autosave is in flight: A ends up reordered
+    // AND keeps the typed body.
+    await Promise.all([
+      repo.reorder(a.id, 1),
+      repo.mutate(a.id, (p) => ({ ...(p as NotesPage), body: "edited" })),
+    ]);
+    const after = (await repo.get(a.id)) as NotesPage;
+    expect(after.order).toBe(1);
+    expect(after.body).toBe("edited");
   });
 
   it("keeps the per-id chain alive after a failed mutation", async () => {
