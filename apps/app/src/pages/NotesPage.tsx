@@ -1,48 +1,17 @@
-import { useEffect, useRef, useState } from "react";
 import type { NotesPage as NotesPageType } from "@otocho/core";
-
-const AUTOSAVE_DELAY_MS = 400;
-
-type SaveState = "idle" | "saving" | "saved";
+import { useAutosave } from "./useAutosave";
 
 export interface NotesPageProps {
   page: NotesPageType;
-  onSave: (body: string) => Promise<void>;
+  onSave: (transform: (page: NotesPageType) => NotesPageType) => Promise<void>;
 }
 
 export function NotesPage({ page, onSave }: NotesPageProps) {
-  const [body, setBody] = useState(page.body);
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Track the page id so we reset local state when a different page is selected.
-  const pageIdRef = useRef(page.id);
-
-  useEffect(() => {
-    if (page.id !== pageIdRef.current) {
-      pageIdRef.current = page.id;
-      setBody(page.body);
-      setSaveState("idle");
-      if (timerRef.current) clearTimeout(timerRef.current);
-    }
-  }, [page.id, page.body]);
-
-  function handleChange(value: string) {
-    setBody(value);
-    setSaveState("saving");
-
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(async () => {
-      await onSave(value);
-      setSaveState("saved");
-    }, AUTOSAVE_DELAY_MS);
-  }
-
-  // Clean up any pending timer on unmount.
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
+  const [body, setBody, saveState] = useAutosave(
+    page.body,
+    (value) => onSave((p) => ({ ...p, body: value })),
+    page.id,
+  );
 
   const saveLabel =
     saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : null;
@@ -61,7 +30,7 @@ export function NotesPage({ page, onSave }: NotesPageProps) {
       <textarea
         aria-label="Notes body"
         value={body}
-        onChange={(e) => handleChange(e.target.value)}
+        onChange={(e) => setBody(e.target.value)}
         placeholder="Type anything…"
         className={[
           "flex-1 resize-none rounded-md bg-otocho-canvas p-4",

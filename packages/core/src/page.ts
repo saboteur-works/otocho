@@ -181,3 +181,187 @@ export function appendMove(
   const move: Move = { id: options.id ?? newId(), at, text: trimmed };
   return { ...page, moves: [...page.moves, move], updatedAt: at };
 }
+
+/** Options for pure content transforms that only stamp `updatedAt`. */
+export type TransformOptions = { now?: () => string };
+
+/**
+ * Edit an existing move's text (FR-7). The move keeps its id and original
+ * timestamp; only the text changes. Empty text is rejected. Pure; a no-op if
+ * no move matches `moveId`.
+ */
+export function editMove(
+  page: BuildLogPage,
+  moveId: string,
+  text: string,
+  options: TransformOptions = {},
+): BuildLogPage {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    throw new Error("A move requires text.");
+  }
+  if (!page.moves.some((m) => m.id === moveId)) return page;
+  return {
+    ...page,
+    moves: page.moves.map((m) => (m.id === moveId ? { ...m, text: trimmed } : m)),
+    updatedAt: (options.now ?? nowIso)(),
+  };
+}
+
+/** Remove a move from the feed. Pure; a no-op if `moveId` is absent. */
+export function removeMove(
+  page: BuildLogPage,
+  moveId: string,
+  options: TransformOptions = {},
+): BuildLogPage {
+  if (!page.moves.some((m) => m.id === moveId)) return page;
+  return {
+    ...page,
+    moves: page.moves.filter((m) => m.id !== moveId),
+    updatedAt: (options.now ?? nowIso)(),
+  };
+}
+
+export type NewPresetDeviceInput = { name?: string; settings?: string; params?: PresetParam[] };
+
+/** Create a device for a preset chain. Deterministic id via the options bag. */
+export function createPresetDevice(
+  input: NewPresetDeviceInput = {},
+  options: { id?: string } = {},
+): PresetDevice {
+  return {
+    id: options.id ?? newId(),
+    name: (input.name ?? "").trim() || "New device",
+    settings: input.settings ?? "",
+    params: input.params ?? [],
+  };
+}
+
+/** Append a device to the chain (FR-8). Pure. */
+export function addDevice(
+  page: PresetPage,
+  device: PresetDevice,
+  options: TransformOptions = {},
+): PresetPage {
+  return { ...page, devices: [...page.devices, device], updatedAt: (options.now ?? nowIso)() };
+}
+
+/** Patch a device's own fields (name/settings). Pure; a no-op if absent. */
+export function updateDevice(
+  page: PresetPage,
+  deviceId: string,
+  patch: Partial<Omit<PresetDevice, "id">>,
+  options: TransformOptions = {},
+): PresetPage {
+  if (!page.devices.some((d) => d.id === deviceId)) return page;
+  return {
+    ...page,
+    devices: page.devices.map((d) => (d.id === deviceId ? { ...d, ...patch } : d)),
+    updatedAt: (options.now ?? nowIso)(),
+  };
+}
+
+/** Remove a device from the chain. Pure; a no-op if absent. */
+export function removeDevice(
+  page: PresetPage,
+  deviceId: string,
+  options: TransformOptions = {},
+): PresetPage {
+  if (!page.devices.some((d) => d.id === deviceId)) return page;
+  return {
+    ...page,
+    devices: page.devices.filter((d) => d.id !== deviceId),
+    updatedAt: (options.now ?? nowIso)(),
+  };
+}
+
+/**
+ * Move device `fromId` to the current position of `toId` in the chain (FR-8).
+ * Pure; a no-op if either id is missing or they're already the same position.
+ */
+export function reorderDevices(
+  page: PresetPage,
+  fromId: string,
+  toId: string,
+  options: TransformOptions = {},
+): PresetPage {
+  const from = page.devices.findIndex((d) => d.id === fromId);
+  const to = page.devices.findIndex((d) => d.id === toId);
+  if (from === -1 || to === -1 || from === to) return page;
+  const devices = [...page.devices];
+  const [moved] = devices.splice(from, 1);
+  devices.splice(to, 0, moved);
+  return { ...page, devices, updatedAt: (options.now ?? nowIso)() };
+}
+
+export type NewPresetParamInput = { key?: string; value?: string };
+
+/** Create a key=value parameter row. Deterministic id via the options bag. */
+export function createPresetParam(
+  input: NewPresetParamInput = {},
+  options: { id?: string } = {},
+): PresetParam {
+  return { id: options.id ?? newId(), key: input.key ?? "", value: input.value ?? "" };
+}
+
+/** Append a parameter row to a device. Pure; a no-op if the device is absent. */
+export function addParam(
+  page: PresetPage,
+  deviceId: string,
+  param: PresetParam,
+  options: TransformOptions = {},
+): PresetPage {
+  return mapDeviceParams(page, deviceId, (params) => [...params, param], options);
+}
+
+/** Patch a parameter's key/value. Pure; a no-op if device or param is absent. */
+export function updateParam(
+  page: PresetPage,
+  deviceId: string,
+  paramId: string,
+  patch: Partial<Omit<PresetParam, "id">>,
+  options: TransformOptions = {},
+): PresetPage {
+  return mapDeviceParams(
+    page,
+    deviceId,
+    (params) =>
+      params.some((p) => p.id === paramId)
+        ? params.map((p) => (p.id === paramId ? { ...p, ...patch } : p))
+        : params,
+    options,
+  );
+}
+
+/** Remove a parameter row from a device. Pure; a no-op if absent. */
+export function removeParam(
+  page: PresetPage,
+  deviceId: string,
+  paramId: string,
+  options: TransformOptions = {},
+): PresetPage {
+  return mapDeviceParams(
+    page,
+    deviceId,
+    (params) =>
+      params.some((p) => p.id === paramId) ? params.filter((p) => p.id !== paramId) : params,
+    options,
+  );
+}
+
+function mapDeviceParams(
+  page: PresetPage,
+  deviceId: string,
+  fn: (params: PresetParam[]) => PresetParam[],
+  options: TransformOptions,
+): PresetPage {
+  const device = page.devices.find((d) => d.id === deviceId);
+  if (!device) return page;
+  const params = fn(device.params);
+  if (params === device.params) return page;
+  return {
+    ...page,
+    devices: page.devices.map((d) => (d.id === deviceId ? { ...d, params } : d)),
+    updatedAt: (options.now ?? nowIso)(),
+  };
+}

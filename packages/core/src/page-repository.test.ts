@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { StoragePort, StoredRecord } from "@otocho/storage";
 import { PageRepository } from "./page-repository";
-import type { Page } from "./page";
+import { addDevice, createPresetDevice, type Page, type PresetPage } from "./page";
 
 class MemoryStorage implements StoragePort {
   private data = new Map<string, Map<string, StoredRecord>>();
@@ -183,6 +183,45 @@ describe("PageRepository.reorder", () => {
     await repo.reorder(a.id, 99);
     const listed = await repo.list("proj1");
     expect(listed.map((p) => p.title)).toEqual(["B", "C", "A"]);
+  });
+});
+
+describe("PageRepository.mutate", () => {
+  it("applies a transform against the freshest stored record", async () => {
+    const repo = makeRepo();
+    const page = await repo.create("proj1", "notes", "Notes");
+    const saved = await repo.mutate(page.id, (p) => ({ ...p, title: "Renamed" }));
+    expect(saved.title).toBe("Renamed");
+    expect((await repo.get(page.id))?.title).toBe("Renamed");
+  });
+
+  it("serializes concurrent mutations so neither clobbers the other", async () => {
+    const repo = makeRepo();
+    const page = await repo.create("proj1", "presets", "Chain");
+
+    // Fired together: without per-id serialization both would read the original
+    // record and the second write would drop the first's change.
+    await Promise.all([
+      repo.mutate(page.id, (p) => ({ ...p, title: "Renamed" })),
+      repo.mutate(page.id, (p) => addDevice(p as PresetPage, createPresetDevice({}, { id: "d1" }))),
+    ]);
+
+    const after = (await repo.get(page.id)) as PresetPage;
+    expect(after.title).toBe("Renamed");
+    expect(after.devices.map((d) => d.id)).toEqual(["d1"]);
+  });
+
+  it("keeps the per-id chain alive after a failed mutation", async () => {
+    const repo = makeRepo();
+    const page = await repo.create("proj1", "notes", "Notes");
+    await expect(
+      repo.mutate(page.id, () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+    // A later mutation on the same id still runs.
+    const saved = await repo.mutate(page.id, (p) => ({ ...p, title: "After" }));
+    expect(saved.title).toBe("After");
   });
 });
 

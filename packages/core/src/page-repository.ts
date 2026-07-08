@@ -25,6 +25,8 @@ export class PageRepository {
   private readonly storage: StoragePort;
   private readonly now: () => string;
   private readonly generateId: () => string;
+  /** Tail of the in-flight mutation chain per page id (see {@link mutate}). */
+  private readonly mutations = new Map<string, Promise<unknown>>();
 
   constructor(deps: PageRepositoryDeps) {
     this.storage = deps.storage;
@@ -100,6 +102,31 @@ export class PageRepository {
   async update(page: Page): Promise<Page> {
     await this.require(page.id);
     return this.save({ ...page, updatedAt: this.now() });
+  }
+
+  /**
+   * Serialized read-merge-write. Reads the freshest stored record, applies a
+   * pure transform, refreshes `updatedAt`, and persists the result. Mutations
+   * to the same page id run strictly one at a time, so concurrent edits — a
+   * debounced field save racing an immediate change, or two field edits in
+   * flight together — each merge onto the latest record instead of clobbering
+   * it. One record per page keeps this page-scoped (FR-12).
+   */
+  async mutate(id: string, transform: (page: Page) => Page): Promise<Page> {
+    const prior = this.mutations.get(id) ?? Promise.resolve();
+    const result = prior.then(
+      () => this.applyMutation(id, transform),
+      () => this.applyMutation(id, transform),
+    );
+    // Keep the per-id chain alive but swallowed, so one failure doesn't reject
+    // the next queued mutation.
+    this.mutations.set(id, result.then(undefined, () => undefined));
+    return result;
+  }
+
+  private async applyMutation(id: string, transform: (page: Page) => Page): Promise<Page> {
+    const current = await this.require(id);
+    return this.save({ ...transform(current), updatedAt: this.now() });
   }
 
   async delete(id: string): Promise<void> {

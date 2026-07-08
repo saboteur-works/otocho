@@ -38,7 +38,8 @@ describe("NotesPage", () => {
     expect(onSave).not.toHaveBeenCalled();
 
     await act(async () => { await vi.runAllTimersAsync(); });
-    expect(onSave).toHaveBeenCalledWith("a");
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave.mock.calls[0][0](makePage()).body).toBe("a");
   });
 
   it("debounces: only calls onSave once for rapid keystrokes", async () => {
@@ -52,7 +53,7 @@ describe("NotesPage", () => {
 
     await act(async () => { await vi.runAllTimersAsync(); });
     expect(onSave).toHaveBeenCalledTimes(1);
-    expect(onSave).toHaveBeenCalledWith("abc");
+    expect(onSave.mock.calls[0][0](makePage()).body).toBe("abc");
   });
 
   it("shows Saving… then Saved indicator", async () => {

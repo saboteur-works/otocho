@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -27,86 +27,41 @@ import {
   Button,
   Input,
 } from "@otocho/ui";
-import { newId, type PresetDevice, type PresetPage as PresetPageType, type PresetParam } from "@otocho/core";
-
-const AUTOSAVE_DELAY_MS = 400;
+import {
+  addDevice,
+  addParam,
+  createPresetDevice,
+  createPresetParam,
+  removeDevice,
+  removeParam,
+  reorderDevices,
+  updateDevice,
+  updateParam,
+  type PresetDevice,
+  type PresetPage as PresetPageType,
+  type PresetParam,
+} from "@otocho/core";
+import { useAutosave } from "./useAutosave";
 
 export interface PresetPageProps {
   page: PresetPageType;
-  onSave: (page: PresetPageType) => Promise<void>;
+  onSave: (transform: (page: PresetPageType) => PresetPageType) => Promise<void>;
 }
 
 export function PresetPage({ page, onSave }: PresetPageProps) {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(
     page.devices[0]?.id ?? null,
   );
-  const pageIdRef = useRef(page.id);
 
-  // When the page switches, reset selection to first device.
-  useEffect(() => {
-    if (page.id !== pageIdRef.current) {
-      pageIdRef.current = page.id;
-      setSelectedDeviceId(page.devices[0]?.id ?? null);
-    }
-  }, [page.id, page.devices]);
+  // Derive the shown device: fall back to the first when the stored selection
+  // is stale (the page switched, or the selected device was removed).
+  const selectedDevice =
+    page.devices.find((d) => d.id === selectedDeviceId) ?? page.devices[0] ?? null;
 
-  // Keep selection valid as devices are added/removed.
-  useEffect(() => {
-    if (selectedDeviceId !== null && !page.devices.find((d) => d.id === selectedDeviceId)) {
-      setSelectedDeviceId(page.devices[0]?.id ?? null);
-    }
-  }, [page.devices, selectedDeviceId]);
-
-  async function addDevice() {
-    const device: PresetDevice = { id: newId(), name: "New device", settings: "", params: [] };
-    const updated = { ...page, devices: [...page.devices, device] };
-    await onSave(updated);
-    setSelectedDeviceId(device.id);
+  function handleAddDevice() {
+    const device = createPresetDevice();
+    void onSave((p) => addDevice(p, device)).then(() => setSelectedDeviceId(device.id));
   }
-
-  async function updateDevice(deviceId: string, patch: Partial<PresetDevice>) {
-    await onSave({
-      ...page,
-      devices: page.devices.map((d) => (d.id === deviceId ? { ...d, ...patch } : d)),
-    });
-  }
-
-  async function deleteDevice(deviceId: string) {
-    await onSave({ ...page, devices: page.devices.filter((d) => d.id !== deviceId) });
-  }
-
-  async function reorderDevices(activeId: string, overId: string) {
-    const from = page.devices.findIndex((d) => d.id === activeId);
-    const to = page.devices.findIndex((d) => d.id === overId);
-    if (from === -1 || to === -1 || from === to) return;
-    const reordered = [...page.devices];
-    const [moved] = reordered.splice(from, 1);
-    reordered.splice(to, 0, moved);
-    await onSave({ ...page, devices: reordered });
-  }
-
-  async function addParam(deviceId: string) {
-    const param: PresetParam = { id: newId(), key: "", value: "" };
-    await updateDevice(deviceId, {
-      params: [...(page.devices.find((d) => d.id === deviceId)?.params ?? []), param],
-    });
-  }
-
-  async function updateParam(deviceId: string, paramId: string, patch: Partial<PresetParam>) {
-    const device = page.devices.find((d) => d.id === deviceId);
-    if (!device) return;
-    await updateDevice(deviceId, {
-      params: device.params.map((p) => (p.id === paramId ? { ...p, ...patch } : p)),
-    });
-  }
-
-  async function deleteParam(deviceId: string, paramId: string) {
-    const device = page.devices.find((d) => d.id === deviceId);
-    if (!device) return;
-    await updateDevice(deviceId, { params: device.params.filter((p) => p.id !== paramId) });
-  }
-
-  const selectedDevice = page.devices.find((d) => d.id === selectedDeviceId) ?? null;
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -114,17 +69,17 @@ export function PresetPage({ page, onSave }: PresetPageProps) {
 
       <DeviceChain
         devices={page.devices}
-        selectedId={selectedDeviceId}
+        selectedId={selectedDevice?.id ?? null}
         onSelect={setSelectedDeviceId}
-        onAdd={addDevice}
-        onReorder={reorderDevices}
+        onAdd={handleAddDevice}
+        onReorder={(fromId, toId) => onSave((p) => reorderDevices(p, fromId, toId))}
       />
 
       {page.devices.length === 0 ? (
         <div className="flex flex-1 items-center justify-center">
           <button
             type="button"
-            onClick={() => void addDevice()}
+            onClick={handleAddDevice}
             className="flex items-center gap-2 text-sm text-fg-tertiary hover:text-fg-primary"
           >
             <Plus className="h-4 w-4" /> Add first device
@@ -134,12 +89,16 @@ export function PresetPage({ page, onSave }: PresetPageProps) {
         <DeviceDetailPanel
           key={selectedDevice.id}
           device={selectedDevice}
-          onUpdateName={(name) => updateDevice(selectedDevice.id, { name })}
-          onUpdateSettings={(settings) => updateDevice(selectedDevice.id, { settings })}
-          onDelete={() => deleteDevice(selectedDevice.id)}
-          onAddParam={() => addParam(selectedDevice.id)}
-          onUpdateParam={(paramId, patch) => updateParam(selectedDevice.id, paramId, patch)}
-          onDeleteParam={(paramId) => deleteParam(selectedDevice.id, paramId)}
+          onUpdateName={(name) => onSave((p) => updateDevice(p, selectedDevice.id, { name }))}
+          onUpdateSettings={(settings) =>
+            onSave((p) => updateDevice(p, selectedDevice.id, { settings }))
+          }
+          onDelete={() => onSave((p) => removeDevice(p, selectedDevice.id))}
+          onAddParam={() => onSave((p) => addParam(p, selectedDevice.id, createPresetParam()))}
+          onUpdateParam={(paramId, patch) =>
+            onSave((p) => updateParam(p, selectedDevice.id, paramId, patch))
+          }
+          onDeleteParam={(paramId) => onSave((p) => removeParam(p, selectedDevice.id, paramId))}
         />
       ) : null}
     </div>
@@ -157,7 +116,7 @@ function DeviceChain({
   selectedId: string | null;
   onSelect: (id: string) => void;
   onAdd: () => void;
-  onReorder: (activeId: string, overId: string) => void;
+  onReorder: (fromId: string, toId: string) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -254,16 +213,14 @@ function DeviceDetailPanel({
 }) {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(device.name);
-  const [settings, setSettings] = useState(device.settings);
-  const settingsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [settings, setSettings, settingsSaveState] = useAutosave(
+    device.settings,
+    onUpdateSettings,
+    device.id,
+  );
 
-  useEffect(() => () => { if (settingsTimerRef.current) clearTimeout(settingsTimerRef.current); }, []);
-
-  function handleSettingsChange(value: string) {
-    setSettings(value);
-    if (settingsTimerRef.current) clearTimeout(settingsTimerRef.current);
-    settingsTimerRef.current = setTimeout(() => void onUpdateSettings(value), AUTOSAVE_DELAY_MS);
-  }
+  const settingsLabel =
+    settingsSaveState === "saving" ? "Saving…" : settingsSaveState === "saved" ? "Saved" : null;
 
   async function submitName(e: FormEvent) {
     e.preventDefault();
@@ -325,11 +282,18 @@ function DeviceDetailPanel({
 
       {/* Settings */}
       <div className="flex flex-col gap-1">
-        <span className="font-mono text-xs uppercase tracking-label text-fg-tertiary">Settings</span>
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-xs uppercase tracking-label text-fg-tertiary">Settings</span>
+          {settingsLabel ? (
+            <span className="font-mono text-xs uppercase tracking-label text-fg-tertiary">
+              {settingsLabel}
+            </span>
+          ) : null}
+        </div>
         <textarea
           aria-label="Device settings"
           value={settings}
-          onChange={(e) => handleSettingsChange(e.target.value)}
+          onChange={(e) => setSettings(e.target.value)}
           placeholder="Free-text notes about this device…"
           rows={3}
           className={[
@@ -376,12 +340,15 @@ function ParamRow({
   onUpdate: (patch: Partial<PresetParam>) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
+  const [key, setKey] = useAutosave(param.key, (value) => onUpdate({ key: value }), param.id);
+  const [value, setValue] = useAutosave(param.value, (v) => onUpdate({ value: v }), param.id);
+
   return (
     <div role="listitem" className="flex items-center gap-2">
       <input
         aria-label="Parameter key"
-        value={param.key}
-        onChange={(e) => void onUpdate({ key: e.target.value })}
+        value={key}
+        onChange={(e) => setKey(e.target.value)}
         placeholder="key"
         className={[
           "w-32 rounded bg-otocho-canvas px-2 py-1 font-mono text-xs text-fg-primary placeholder:text-fg-tertiary",
@@ -391,8 +358,8 @@ function ParamRow({
       <span className="text-fg-tertiary text-xs">=</span>
       <input
         aria-label="Parameter value"
-        value={param.value}
-        onChange={(e) => void onUpdate({ value: e.target.value })}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
         placeholder="value"
         className={[
           "flex-1 rounded bg-otocho-canvas px-2 py-1 font-mono text-xs text-fg-primary placeholder:text-fg-tertiary",

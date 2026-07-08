@@ -24,6 +24,11 @@ function makePageWithDevices(): PresetPage {
   });
 }
 
+/** onSave now receives a transform; apply the first call to `base` to inspect the result. */
+function firstSave(onSave: ReturnType<typeof vi.fn>, base: PresetPage): PresetPage {
+  return onSave.mock.calls[0][0](base);
+}
+
 describe("PresetPage — device chain", () => {
   it("shows empty state with add prompt when no devices", () => {
     render(<PresetPageEditor page={makePage()} onSave={vi.fn()} />);
@@ -43,7 +48,7 @@ describe("PresetPage — device chain", () => {
     await userEvent.click(screen.getByRole("button", { name: /add first device/i }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
-    const saved = onSave.mock.calls[0][0] as PresetPage;
+    const saved = firstSave(onSave, makePage());
     expect(saved.devices).toHaveLength(1);
     expect(saved.devices[0].name).toBe("New device");
   });
@@ -54,7 +59,7 @@ describe("PresetPage — device chain", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /add device/i }));
 
-    const saved = onSave.mock.calls[0][0] as PresetPage;
+    const saved = firstSave(onSave, makePageWithDevices());
     expect(saved.devices).toHaveLength(3);
   });
 
@@ -71,7 +76,7 @@ describe("PresetPage — device chain", () => {
     await userEvent.click(screen.getByRole("button", { name: /delete device/i }));
     await userEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
 
-    const saved = onSave.mock.calls[0][0] as PresetPage;
+    const saved = firstSave(onSave, makePageWithDevices());
     expect(saved.devices).toHaveLength(1);
     expect(saved.devices[0].id).toBe("d2");
   });
@@ -96,7 +101,7 @@ describe("PresetPage — device detail", () => {
     await userEvent.type(input, "Pro-Q 4{Enter}");
 
     expect(onSave).toHaveBeenCalledTimes(1);
-    const saved = onSave.mock.calls[0][0] as PresetPage;
+    const saved = firstSave(onSave, makePageWithDevices());
     expect(saved.devices.find((d) => d.id === "d1")?.name).toBe("Pro-Q 4");
   });
 
@@ -111,7 +116,7 @@ describe("PresetPage — device detail", () => {
     await act(async () => { await vi.runAllTimersAsync(); });
     vi.useRealTimers();
     expect(onSave).toHaveBeenCalledTimes(1);
-    const saved = onSave.mock.calls[0][0] as PresetPage;
+    const saved = firstSave(onSave, makePageWithDevices());
     expect(saved.devices.find((d) => d.id === "d1")?.settings).toBe("new settings");
   });
 
@@ -121,7 +126,7 @@ describe("PresetPage — device detail", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /add parameter/i }));
 
-    const saved = onSave.mock.calls[0][0] as PresetPage;
+    const saved = firstSave(onSave, makePageWithDevices());
     expect(saved.devices.find((d) => d.id === "d1")?.params).toHaveLength(2);
   });
 
@@ -133,7 +138,7 @@ describe("PresetPage — device detail", () => {
     fireEvent.change(keyInput, { target: { value: "LPF" } });
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const saved = onSave.mock.calls[0][0] as PresetPage;
+    const saved = firstSave(onSave, makePageWithDevices());
     expect(saved.devices.find((d) => d.id === "d1")?.params[0].key).toBe("LPF");
   });
 
@@ -143,7 +148,7 @@ describe("PresetPage — device detail", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /delete parameter/i }));
 
-    const saved = onSave.mock.calls[0][0] as PresetPage;
+    const saved = firstSave(onSave, makePageWithDevices());
     expect(saved.devices.find((d) => d.id === "d1")?.params).toHaveLength(0);
   });
 });

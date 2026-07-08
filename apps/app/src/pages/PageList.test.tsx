@@ -161,9 +161,62 @@ describe("PageList", () => {
     await userEvent.click(await screen.findByRole("menuitem", { name: /rename/i }));
 
     const input = screen.getByLabelText(/page title/i);
+    fireEvent.change(input, { target: { value: "Discarded" } });
     fireEvent.keyDown(input, { key: "Escape" });
 
     expect(screen.queryByLabelText(/page title/i)).toBeNull();
     expect(onRename).not.toHaveBeenCalled();
+  });
+
+  it("commits rename on blur (click away)", async () => {
+    const onRename = vi.fn();
+    const page = makePage();
+    render(
+      <PageList
+        pages={[page]}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onCreate={vi.fn()}
+        onRename={onRename}
+        onDelete={vi.fn()}
+        onReorder={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /page actions/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /rename/i }));
+
+    const input = screen.getByLabelText(/page title/i);
+    fireEvent.change(input, { target: { value: "Blurred" } });
+    fireEvent.blur(input);
+
+    expect(onRename).toHaveBeenCalledWith(page.id, "Blurred");
+  });
+
+  it("does not rename twice when submit is followed by a blur", async () => {
+    const onRename = vi.fn();
+    const page = makePage();
+    render(
+      <PageList
+        pages={[page]}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onCreate={vi.fn()}
+        onRename={onRename}
+        onDelete={vi.fn()}
+        onReorder={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /page actions/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /rename/i }));
+
+    const input = screen.getByLabelText(/page title/i);
+    fireEvent.change(input, { target: { value: "Once" } });
+    // Enter submits; the blur guard must swallow the trailing blur so this
+    // doesn't fire a second rename.
+    fireEvent.submit(input);
+    fireEvent.blur(input);
+
+    expect(onRename).toHaveBeenCalledTimes(1);
+    expect(onRename).toHaveBeenCalledWith(page.id, "Once");
   });
 });

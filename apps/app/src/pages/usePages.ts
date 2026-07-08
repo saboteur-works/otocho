@@ -9,7 +9,11 @@ export interface UsePages {
   create: (type: PageType, title?: string) => Promise<Page>;
   rename: (id: string, title: string) => Promise<void>;
   reorder: (id: string, newIndex: number) => Promise<void>;
-  updatePage: (page: Page) => Promise<void>;
+  /**
+   * Apply a pure transform to a page through a serialized merge write, so
+   * concurrent edits don't clobber each other (see PageRepository.mutate).
+   */
+  mutatePage: <P extends Page>(id: string, transform: (page: P) => P) => Promise<void>;
   deletePage: (id: string) => Promise<void>;
 }
 
@@ -53,15 +57,16 @@ export function usePages(
 
   const reorder = useCallback(
     async (id: string, newIndex: number) => {
-      await repo.reorder(id, newIndex);
-      await refresh();
+      // reorder returns the full, newly-ordered sibling list — use it directly
+      // instead of a second full-collection read.
+      setPages(await repo.reorder(id, newIndex));
     },
-    [repo, refresh],
+    [repo],
   );
 
-  const updatePage = useCallback(
-    async (page: Page) => {
-      const updated = await repo.update(page);
+  const mutatePage = useCallback(
+    async <P extends Page>(id: string, transform: (page: P) => P) => {
+      const updated = await repo.mutate(id, transform as unknown as (page: Page) => Page);
       setPages((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     },
     [repo],
@@ -75,5 +80,5 @@ export function usePages(
     [repo, refresh],
   );
 
-  return { pages, loading, refresh, create, rename, reorder, updatePage, deletePage };
+  return { pages, loading, refresh, create, rename, reorder, mutatePage, deletePage };
 }

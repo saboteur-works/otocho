@@ -1,14 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
+  addDevice,
+  addParam,
   appendMove,
   byOrder,
   createBuildLogPage,
   createNotesPage,
   createPage,
+  createPresetDevice,
+  createPresetParam,
   createPresetPage,
+  editMove,
   PAGE_TYPES,
+  removeDevice,
+  removeMove,
+  removeParam,
+  reorderDevices,
+  updateDevice,
+  updateParam,
   type BuildLogPage,
   type Page,
+  type PresetPage,
 } from "./page";
 
 /** Monotonic ISO clock and stable id generator for deterministic assertions. */
@@ -119,6 +131,97 @@ describe("appendMove", () => {
 
   it("rejects empty move text", () => {
     expect(() => appendMove(buildLog(), "   ")).toThrow(/text/i);
+  });
+});
+
+describe("move transforms", () => {
+  function withMoves(): BuildLogPage {
+    let page = createBuildLogPage({ projectId: "p" }, { id: "pg", now: () => "2026-01-01T00:00:00.000Z" });
+    page = appendMove(page, "one", { id: "m1", now: () => "2026-01-01T01:00:00.000Z" });
+    page = appendMove(page, "two", { id: "m2", now: () => "2026-01-01T02:00:00.000Z" });
+    return page;
+  }
+
+  it("editMove changes only the target's text, keeping id and timestamp", () => {
+    const page = withMoves();
+    const next = editMove(page, "m1", "edited", { now: () => "2026-02-01T00:00:00.000Z" });
+    expect(next.moves.find((m) => m.id === "m1")).toEqual({ id: "m1", at: "2026-01-01T01:00:00.000Z", text: "edited" });
+    expect(next.moves.find((m) => m.id === "m2")?.text).toBe("two");
+    expect(next.updatedAt).toBe("2026-02-01T00:00:00.000Z");
+    expect(page.moves.find((m) => m.id === "m1")?.text).toBe("one"); // pure
+  });
+
+  it("editMove rejects empty text and is a no-op for a missing id", () => {
+    const page = withMoves();
+    expect(() => editMove(page, "m1", "  ")).toThrow(/text/i);
+    expect(editMove(page, "nope", "x")).toBe(page);
+  });
+
+  it("removeMove drops the target and advances updatedAt; no-op when absent", () => {
+    const page = withMoves();
+    const next = removeMove(page, "m1", { now: () => "2026-02-01T00:00:00.000Z" });
+    expect(next.moves.map((m) => m.id)).toEqual(["m2"]);
+    expect(next.updatedAt).toBe("2026-02-01T00:00:00.000Z");
+    expect(removeMove(page, "nope")).toBe(page);
+  });
+});
+
+describe("preset transforms", () => {
+  function withDevices(): PresetPage {
+    let page = createPresetPage({ projectId: "p" }, { id: "pg", now: () => "2026-01-01T00:00:00.000Z" });
+    page = addDevice(page, createPresetDevice({ name: "A" }, { id: "d1" }), { now: () => "2026-01-01T01:00:00.000Z" });
+    page = addDevice(page, createPresetDevice({ name: "B" }, { id: "d2" }), { now: () => "2026-01-01T02:00:00.000Z" });
+    return page;
+  }
+
+  it("createPresetDevice/createPresetParam apply defaults and honor the id override", () => {
+    expect(createPresetDevice({}, { id: "d" })).toEqual({ id: "d", name: "New device", settings: "", params: [] });
+    expect(createPresetParam({ key: "k" }, { id: "p" })).toEqual({ id: "p", key: "k", value: "" });
+  });
+
+  it("addDevice appends to the chain", () => {
+    const page = withDevices();
+    expect(page.devices.map((d) => d.id)).toEqual(["d1", "d2"]);
+  });
+
+  it("updateDevice patches one device; no-op when absent", () => {
+    const page = withDevices();
+    const next = updateDevice(page, "d1", { settings: "HPF" }, { now: () => "2026-03-01T00:00:00.000Z" });
+    expect(next.devices.find((d) => d.id === "d1")?.settings).toBe("HPF");
+    expect(next.updatedAt).toBe("2026-03-01T00:00:00.000Z");
+    expect(updateDevice(page, "nope", { settings: "x" })).toBe(page);
+  });
+
+  it("removeDevice drops one device; no-op when absent", () => {
+    const page = withDevices();
+    expect(removeDevice(page, "d1").devices.map((d) => d.id)).toEqual(["d2"]);
+    expect(removeDevice(page, "nope")).toBe(page);
+  });
+
+  it("reorderDevices moves a device to another's position; no-op on missing/equal", () => {
+    const page = withDevices();
+    expect(reorderDevices(page, "d1", "d2").devices.map((d) => d.id)).toEqual(["d2", "d1"]);
+    expect(reorderDevices(page, "d1", "d1")).toBe(page);
+    expect(reorderDevices(page, "d1", "nope")).toBe(page);
+  });
+
+  it("addParam/updateParam/removeParam operate on the named device's params", () => {
+    let page = withDevices();
+    page = addParam(page, "d1", createPresetParam({ key: "HPF", value: "80" }, { id: "p1" }));
+    expect(page.devices.find((d) => d.id === "d1")?.params).toEqual([{ id: "p1", key: "HPF", value: "80" }]);
+
+    page = updateParam(page, "d1", "p1", { value: "100" });
+    expect(page.devices.find((d) => d.id === "d1")?.params[0].value).toBe("100");
+
+    page = removeParam(page, "d1", "p1");
+    expect(page.devices.find((d) => d.id === "d1")?.params).toEqual([]);
+  });
+
+  it("param transforms are no-ops when the device or param is missing", () => {
+    const page = withDevices();
+    expect(addParam(page, "nope", createPresetParam())).toBe(page);
+    expect(updateParam(page, "d1", "nope", { value: "x" })).toBe(page);
+    expect(removeParam(page, "d1", "nope")).toBe(page);
   });
 });
 

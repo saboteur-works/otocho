@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Plus } from "lucide-react";
 import {
   AlertDialog,
@@ -17,51 +17,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@otocho/ui";
-import { appendMove, newId, type BuildLogPage as BuildLogPageType, type Move } from "@otocho/core";
-
-const AUTOSAVE_DELAY_MS = 400;
+import { appendMove, editMove, removeMove, type BuildLogPage as BuildLogPageType, type Move } from "@otocho/core";
+import { useAutosave } from "./useAutosave";
 
 export interface BuildLogPageProps {
   page: BuildLogPageType;
-  onSave: (page: BuildLogPageType) => Promise<void>;
+  onSave: (transform: (page: BuildLogPageType) => BuildLogPageType) => Promise<void>;
 }
 
 export function BuildLogPage({ page, onSave }: BuildLogPageProps) {
-  const [sketch, setSketch] = useState(page.sketch);
-  const sketchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [sketchSaveState, setSketchSaveState] = useState<"idle" | "saving" | "saved">("idle");
-  const pageIdRef = useRef(page.id);
+  const [sketch, setSketch, sketchSaveState] = useAutosave(
+    page.sketch,
+    (value) => onSave((p) => ({ ...p, sketch: value })),
+    page.id,
+  );
   const [quickAdd, setQuickAdd] = useState("");
   const quickAddRef = useRef<HTMLTextAreaElement>(null);
-
-  // Reset local sketch state when the page changes.
-  useEffect(() => {
-    if (page.id !== pageIdRef.current) {
-      pageIdRef.current = page.id;
-      setSketch(page.sketch);
-      setSketchSaveState("idle");
-      if (sketchTimerRef.current) clearTimeout(sketchTimerRef.current);
-    }
-  }, [page.id, page.sketch]);
-
-  useEffect(() => () => { if (sketchTimerRef.current) clearTimeout(sketchTimerRef.current); }, []);
-
-  function handleSketchChange(value: string) {
-    setSketch(value);
-    setSketchSaveState("saving");
-    if (sketchTimerRef.current) clearTimeout(sketchTimerRef.current);
-    sketchTimerRef.current = setTimeout(async () => {
-      await onSave({ ...page, sketch: value });
-      setSketchSaveState("saved");
-    }, AUTOSAVE_DELAY_MS);
-  }
 
   async function handleAppend() {
     const text = quickAdd.trim();
     if (text.length === 0) return;
-    const updated = appendMove(page, text, { id: newId() });
     setQuickAdd("");
-    await onSave(updated);
+    await onSave((p) => appendMove(p, text));
     quickAddRef.current?.focus();
   }
 
@@ -73,25 +50,17 @@ export function BuildLogPage({ page, onSave }: BuildLogPageProps) {
   }
 
   async function handleEditMove(moveId: string, text: string) {
-    const updated: BuildLogPageType = {
-      ...page,
-      moves: page.moves.map((m) => (m.id === moveId ? { ...m, text } : m)),
-    };
-    await onSave(updated);
+    await onSave((p) => editMove(p, moveId, text));
   }
 
   async function handleDeleteMove(moveId: string) {
-    const updated: BuildLogPageType = {
-      ...page,
-      moves: page.moves.filter((m) => m.id !== moveId),
-    };
-    await onSave(updated);
+    await onSave((p) => removeMove(p, moveId));
   }
 
   const sketchLabel =
     sketchSaveState === "saving" ? "Saving…" : sketchSaveState === "saved" ? "Saved" : null;
 
-  const groupedMoves = groupMovesByDay(page.moves);
+  const groupedMoves = useMemo(() => groupMovesByDay(page.moves), [page.moves]);
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -110,7 +79,7 @@ export function BuildLogPage({ page, onSave }: BuildLogPageProps) {
         <textarea
           aria-label="Sketch"
           value={sketch}
-          onChange={(e) => handleSketchChange(e.target.value)}
+          onChange={(e) => setSketch(e.target.value)}
           placeholder="Arrangement ideas, references, anything…"
           rows={5}
           className={[
@@ -133,8 +102,8 @@ export function BuildLogPage({ page, onSave }: BuildLogPageProps) {
             {groupedMoves.length === 0 ? (
               <p className="p-4 text-center text-xs text-fg-tertiary">No moves yet.</p>
             ) : (
-              groupedMoves.map(({ day, moves }) => (
-                <div key={day}>
+              groupedMoves.map(({ key, day, moves }) => (
+                <div key={key}>
                   <div className="sticky top-0 flex items-center gap-2 bg-brand-black px-3 py-1">
                     <div className="h-px flex-1 bg-brand-rule" />
                     <span className="font-mono text-xs text-fg-tertiary">{day}</span>
@@ -311,23 +280,36 @@ function MoveMenu({
   );
 }
 
+const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+const DAY_FORMAT = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
 function formatTime(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+  return TIME_FORMAT.format(new Date(iso));
 }
 
 function formatDay(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(iso));
+  return DAY_FORMAT.format(new Date(iso));
 }
 
-function groupMovesByDay(moves: Move[]): { day: string; moves: Move[] }[] {
-  const groups: { day: string; moves: Move[] }[] = [];
+/** Stable per-calendar-day key (year included) so the same day across years never collides. */
+function dayKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function groupMovesByDay(moves: Move[]): { key: string; day: string; moves: Move[] }[] {
+  const groups: { key: string; day: string; moves: Move[] }[] = [];
   for (const move of moves) {
-    const day = formatDay(move.at);
+    const key = dayKey(move.at);
     const last = groups[groups.length - 1];
-    if (last && last.day === day) {
+    if (last && last.key === key) {
       last.moves.push(move);
     } else {
-      groups.push({ day, moves: [move] });
+      groups.push({ key, day: formatDay(move.at), moves: [move] });
     }
   }
   return groups;

@@ -3,11 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   PageRepository,
   ProjectRepository,
-  type BuildLogPage,
-  type NotesPage,
   type Page,
   type PageType,
-  type PresetPage,
 } from "@otocho/core";
 import { NotesPage as NotesPageEditor } from "../pages/NotesPage";
 import { BuildLogPage as BuildLogPageEditor } from "../pages/BuildLogPage";
@@ -51,7 +48,10 @@ export function ProjectView({
   const [error, setError] = useState<string | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
 
-  const { pages, create, rename, reorder, updatePage, deletePage } = usePages(id ?? "", pageRepo);
+  const { pages, loading, create, rename, reorder, mutatePage, deletePage } = usePages(
+    id ?? "",
+    pageRepo,
+  );
 
   useEffect(() => {
     if (!id) { setStatus("missing"); return; }
@@ -104,18 +104,6 @@ export function ProjectView({
   async function handleCreate(type: PageType) {
     const page = await create(type);
     setSelectedPageId(page.id);
-  }
-
-  async function handleRename(pageId: string, title: string) {
-    await rename(pageId, title);
-  }
-
-  async function handleDelete(pageId: string) {
-    await deletePage(pageId);
-  }
-
-  async function handleReorder(pageId: string, newIndex: number) {
-    await reorder(pageId, newIndex);
   }
 
   const selectedPage = pages.find((p) => p.id === selectedPageId) ?? null;
@@ -187,23 +175,27 @@ export function ProjectView({
             )}
           </div>
 
-          <div className="flex gap-0 rounded-lg border border-brand-rule overflow-hidden">
-            <aside className="w-52 flex-shrink-0 border-r border-brand-rule bg-brand-black p-3">
-              <PageList
-                pages={pages}
-                selectedId={selectedPageId}
-                onSelect={(page) => setSelectedPageId(page.id)}
-                onCreate={handleCreate}
-                onRename={handleRename}
-                onDelete={handleDelete}
-                onReorder={handleReorder}
-              />
-            </aside>
+          {loading ? (
+            <p className="px-4 text-fg-tertiary">Loading pages…</p>
+          ) : (
+            <div className="flex gap-0 rounded-lg border border-brand-rule overflow-hidden">
+              <aside className="w-52 flex-shrink-0 border-r border-brand-rule bg-brand-black p-3">
+                <PageList
+                  pages={pages}
+                  selectedId={selectedPageId}
+                  onSelect={(page) => setSelectedPageId(page.id)}
+                  onCreate={handleCreate}
+                  onRename={rename}
+                  onDelete={deletePage}
+                  onReorder={reorder}
+                />
+              </aside>
 
-            <div className="flex flex-1 flex-col p-6">
-              <PageContent page={selectedPage} onUpdatePage={updatePage} />
+              <div className="flex flex-1 flex-col p-6">
+                <PageContent page={selectedPage} onMutate={mutatePage} />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : null}
     </div>
@@ -212,10 +204,10 @@ export function ProjectView({
 
 function PageContent({
   page,
-  onUpdatePage,
+  onMutate,
 }: {
   page: Page | null;
-  onUpdatePage: (page: Page) => Promise<void>;
+  onMutate: <P extends Page>(id: string, transform: (page: P) => P) => Promise<void>;
 }) {
   if (!page) {
     return (
@@ -225,28 +217,15 @@ function PageContent({
     );
   }
 
+  // `page` is narrowed by `type` in each branch, so the editors and their
+  // transforms are fully typed — no casts needed.
   if (page.type === "notes") {
-    return (
-      <NotesPageEditor
-        page={page as NotesPage}
-        onSave={(body) => onUpdatePage({ ...page, body } as NotesPage)}
-      />
-    );
+    return <NotesPageEditor page={page} onSave={(t) => onMutate(page.id, t)} />;
   }
 
   if (page.type === "build-log") {
-    return (
-      <BuildLogPageEditor
-        page={page as BuildLogPage}
-        onSave={(updated) => onUpdatePage(updated)}
-      />
-    );
+    return <BuildLogPageEditor page={page} onSave={(t) => onMutate(page.id, t)} />;
   }
 
-  return (
-    <PresetPageEditor
-      page={page as PresetPage}
-      onSave={(updated) => onUpdatePage(updated)}
-    />
-  );
+  return <PresetPageEditor page={page} onSave={(t) => onMutate(page.id, t)} />;
 }

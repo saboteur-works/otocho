@@ -28,6 +28,11 @@ function makePageWithMoves(): BuildLogPage {
   return page;
 }
 
+/** onSave now receives a transform; apply the first call to `base` to inspect the result. */
+function firstSave(onSave: ReturnType<typeof vi.fn>, base: BuildLogPage): BuildLogPage {
+  return onSave.mock.calls[0][0](base);
+}
+
 describe("BuildLogPage — sketch", () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
@@ -46,7 +51,7 @@ describe("BuildLogPage — sketch", () => {
 
     await act(async () => { await vi.runAllTimersAsync(); });
     expect(onSave).toHaveBeenCalledTimes(1);
-    expect(onSave.mock.calls[0][0].sketch).toBe("abc");
+    expect(firstSave(onSave, makePage()).sketch).toBe("abc");
   });
 
   it("resets sketch when a different page is shown", () => {
@@ -80,7 +85,7 @@ describe("BuildLogPage — move feed", () => {
     await userEvent.keyboard("{Enter}");
 
     expect(onSave).toHaveBeenCalledTimes(1);
-    const saved = onSave.mock.calls[0][0] as BuildLogPage;
+    const saved = firstSave(onSave, makePage());
     expect(saved.moves).toHaveLength(1);
     expect(saved.moves[0].text).toBe("new move");
     expect(saved.moves[0].at).toBeTruthy();
@@ -116,7 +121,7 @@ describe("BuildLogPage — move feed", () => {
     await userEvent.click(screen.getByRole("button", { name: /append move/i }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
-    expect((onSave.mock.calls[0][0] as BuildLogPage).moves[0].text).toBe("via button");
+    expect(firstSave(onSave, makePage()).moves[0].text).toBe("via button");
   });
 });
 
@@ -135,7 +140,7 @@ describe("BuildLogPage — move edit and delete", () => {
     await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
-    const saved = onSave.mock.calls[0][0] as BuildLogPage;
+    const saved = firstSave(onSave, makePageWithMoves());
     expect(saved.moves.find((m) => m.id === "m1")?.text).toBe("edited text");
     expect(saved.moves.find((m) => m.id === "m2")?.text).toBe("+OTT 20% mix");
   });
@@ -163,7 +168,7 @@ describe("BuildLogPage — move edit and delete", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
-    const saved = onSave.mock.calls[0][0] as BuildLogPage;
+    const saved = firstSave(onSave, makePageWithMoves());
     expect(saved.moves).toHaveLength(1);
     expect(saved.moves[0].id).toBe("m2");
   });

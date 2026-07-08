@@ -64,6 +64,10 @@ export function PageList({
 }: PageListProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  // Mirrors editingId synchronously so the blur fired when the input unmounts
+  // (on Escape or after a submit) can tell it has already finished and not
+  // re-commit a cancelled or duplicate rename.
+  const editingIdRef = useRef<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -83,23 +87,31 @@ export function PageList({
   }
 
   function startRename(page: Page) {
+    editingIdRef.current = page.id;
     setDraft(page.title);
     setEditingId(page.id);
   }
 
-  function submitRename(e: FormEvent, id: string) {
-    e.preventDefault();
-    const trimmed = draft.trim();
-    if (trimmed.length > 0) onRename(id, trimmed);
+  // Ends the current edit exactly once. `commit` saves the draft; the ref guard
+  // ignores the second call (the unmount blur) so Escape truly cancels and a
+  // submit doesn't write twice.
+  function finishRename(id: string, commit: boolean) {
+    if (editingIdRef.current !== id) return;
+    editingIdRef.current = null;
+    if (commit) {
+      const trimmed = draft.trim();
+      if (trimmed.length > 0) onRename(id, trimmed);
+    }
     setEditingId(null);
   }
 
-  function cancelRename() {
-    setEditingId(null);
+  function submitRename(e: FormEvent, id: string) {
+    e.preventDefault();
+    finishRename(id, true);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Escape") cancelRename();
+    if (e.key === "Escape" && editingId) finishRename(editingId, false);
   }
 
   return (

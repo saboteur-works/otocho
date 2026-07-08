@@ -59,17 +59,46 @@ describe("usePages", () => {
     expect(result.current.pages).toHaveLength(0);
   });
 
-  it("updatePage persists changes and reflects them in the list", async () => {
+  it("mutatePage persists changes and reflects them in the list", async () => {
     const repo = makeRepo();
     await repo.create("proj1", "notes", "My notes");
     const { result } = renderHook(() => usePages("proj1", repo));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    const page = result.current.pages[0];
-    const updated = { ...page, body: "new body" } as import("@otocho/core").NotesPage;
-    await act(async () => { await result.current.updatePage(updated); });
+    const pageId = result.current.pages[0].id;
+    await act(async () => {
+      await result.current.mutatePage<import("@otocho/core").NotesPage>(pageId, (p) => ({
+        ...p,
+        body: "new body",
+      }));
+    });
 
     expect((result.current.pages[0] as import("@otocho/core").NotesPage).body).toBe("new body");
+  });
+
+  it("mutatePage serializes concurrent edits so neither clobbers the other", async () => {
+    const repo = makeRepo();
+    await repo.create("proj1", "presets", "Chain");
+    const { result } = renderHook(() => usePages("proj1", repo));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const pageId = result.current.pages[0].id;
+    await act(async () => {
+      await Promise.all([
+        result.current.mutatePage<import("@otocho/core").PresetPage>(pageId, (p) => ({
+          ...p,
+          title: "Renamed",
+        })),
+        result.current.mutatePage<import("@otocho/core").PresetPage>(pageId, (p) => ({
+          ...p,
+          devices: [...p.devices, { id: "d1", name: "Comp", settings: "", params: [] }],
+        })),
+      ]);
+    });
+
+    const page = result.current.pages[0] as import("@otocho/core").PresetPage;
+    expect(page.title).toBe("Renamed");
+    expect(page.devices).toHaveLength(1);
   });
 
   it("reorders pages and reflects the new order", async () => {
