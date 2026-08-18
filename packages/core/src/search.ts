@@ -104,3 +104,73 @@ export function buildSearchIndex(projects: Project[], pages: Page[]): SearchInde
 
   return entries;
 }
+
+/** How many characters of context to keep on each side of a match in a snippet. */
+const SNIPPET_CONTEXT_CHARS = 30;
+
+/** One matched result, carrying everything FR-5 requires to render a row plus navigation targets. */
+export interface SearchResult {
+  /** A bounded excerpt of `value` around the match, for display (FR-5). */
+  snippet: string;
+  /** Which field the match came from (FR-5). */
+  role: SearchIndexRole;
+  pageId: string;
+  pageTitle: string;
+  projectId: string;
+  projectName: string;
+}
+
+/**
+ * Extract a bounded, recognizable snippet of `value` around the first
+ * occurrence of `query` (case-insensitive). Adds an ellipsis when the
+ * snippet is truncated on either side.
+ */
+function extractSnippet(value: string, query: string): string {
+  const lowerValue = value.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const matchIndex = lowerValue.indexOf(lowerQuery);
+  if (matchIndex === -1) return value;
+
+  const start = Math.max(0, matchIndex - SNIPPET_CONTEXT_CHARS);
+  const end = Math.min(value.length, matchIndex + query.length + SNIPPET_CONTEXT_CHARS);
+
+  const prefix = start > 0 ? "…" : "";
+  const suffix = end < value.length ? "…" : "";
+
+  return `${prefix}${value.slice(start, end)}${suffix}`;
+}
+
+/**
+ * Query the index built by `buildSearchIndex` for case-insensitive substring
+ * matches (FR-7). Pure and read-only: takes a plain array, returns a plain
+ * array, does no I/O and mutates nothing (FR-10, FR-11).
+ *
+ * An empty or whitespace-only query returns no results — there is no default
+ * "recent" set (D-3). Results are never grouped or truncated (FR-8, D-5):
+ * they are a flat list, ordered by project recency then page order within a
+ * project. `searchIndex` never reorders — it relies on `entries` already
+ * being in that order end-to-end, which holds as long as `entries` was built
+ * by `buildSearchIndex` from a `pages` array pre-sorted by project recency
+ * then page order (the caller's responsibility).
+ */
+export function searchIndex(entries: SearchIndexEntry[], query: string): SearchResult[] {
+  const trimmedQuery = query.trim();
+  if (trimmedQuery.length === 0) return [];
+
+  const lowerQuery = trimmedQuery.toLowerCase();
+  const results: SearchResult[] = [];
+
+  for (const entry of entries) {
+    if (!entry.value.toLowerCase().includes(lowerQuery)) continue;
+    results.push({
+      snippet: extractSnippet(entry.value, trimmedQuery),
+      role: entry.role,
+      pageId: entry.pageId,
+      pageTitle: entry.pageTitle,
+      projectId: entry.projectId,
+      projectName: entry.projectName,
+    });
+  }
+
+  return results;
+}

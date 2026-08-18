@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSearchIndex, type SearchIndexEntry, type SearchIndexRole } from "./search";
+import { buildSearchIndex, searchIndex, type SearchIndexEntry, type SearchIndexRole } from "./search";
 import type { BuildLogPage, NotesPage, Page, PresetPage } from "./page";
 import type { Project } from "./project";
 
@@ -215,5 +215,165 @@ describe("buildSearchIndex", () => {
   it("returns an empty array for empty input", () => {
     const entries: Page[] = [];
     expect(buildSearchIndex([], entries)).toEqual([]);
+  });
+});
+
+describe("searchIndex", () => {
+  it("returns an empty array for an empty query", () => {
+    const proj = project();
+    const entries = buildSearchIndex([proj], [notesPage()]);
+    expect(searchIndex(entries, "")).toEqual([]);
+  });
+
+  it("returns an empty array for a whitespace-only query", () => {
+    const proj = project();
+    const entries = buildSearchIndex([proj], [notesPage()]);
+    expect(searchIndex(entries, "   ")).toEqual([]);
+  });
+
+  it("matches case-insensitively", () => {
+    const proj = project();
+    const entries = buildSearchIndex([proj], [notesPage({ body: "Some Notes Body" })]);
+
+    expect(searchIndex(entries, "notes body")).toHaveLength(1);
+    expect(searchIndex(entries, "NOTES BODY")).toHaveLength(1);
+    expect(searchIndex(entries, "NoTeS")).toHaveLength(1);
+  });
+
+  it("matches substrings, not just exact whole-field equality", () => {
+    const proj = project();
+    const entries = buildSearchIndex([proj], [notesPage({ body: "a longer sentence with detune inside it" })]);
+
+    const results = searchIndex(entries, "detune");
+    expect(results).toHaveLength(1);
+    expect(results[0].snippet).toContain("detune");
+    // Confirm it is not requiring the whole field to equal the query.
+    expect("a longer sentence with detune inside it").not.toBe("detune");
+  });
+
+  it("finds matches across multiple fields on a single page", () => {
+    const proj = project();
+    const page = presetPage({
+      title: "Cutoff Lead",
+      devices: [
+        {
+          id: "dev1",
+          name: "Cutoff Rack",
+          settings: "no match here",
+          params: [{ id: "p1", key: "Cutoff", value: "8.2kHz" }],
+        },
+      ],
+    });
+    const entries = buildSearchIndex([proj], [page]);
+
+    const results = searchIndex(entries, "cutoff");
+    const roles = results.map((r) => r.role).sort();
+    expect(roles).toEqual(["device-name", "param-key", "track-name"].sort());
+    for (const result of results) {
+      expect(result.pageId).toBe(page.id);
+      expect(result.projectId).toBe(proj.id);
+      expect(result.projectName).toBe(proj.name);
+    }
+  });
+
+  it("finds matches across multiple projects", () => {
+    const projA = project({ id: "projA", name: "Project A" });
+    const projB = project({ id: "projB", name: "Project B" });
+    const pageA = notesPage({ id: "pageA", projectId: "projA", body: "reverb tail" });
+    const pageB = notesPage({ id: "pageB", projectId: "projB", body: "reverb decay" });
+
+    const entries = buildSearchIndex([projA, projB], [pageA, pageB]);
+    const results = searchIndex(entries, "reverb");
+
+    expect(results).toHaveLength(2);
+    expect(results.map((r) => r.projectId)).toEqual(["projA", "projB"]);
+  });
+
+  it("orders results by project recency (input array order) then page order within a project", () => {
+    // Projects passed newest-first, simulating ProjectRepository.list() (project recency order).
+    const projRecent = project({ id: "projRecent", name: "Recent Project" });
+    const projOlder = project({ id: "projOlder", name: "Older Project" });
+
+    const pageOlderFirst = notesPage({
+      id: "page-older-a",
+      projectId: "projOlder",
+      order: 0,
+      body: "match token first",
+    });
+    const pageOlderSecond = buildLogPage({
+      id: "page-older-b",
+      projectId: "projOlder",
+      order: 1,
+      sketch: "match token second",
+      moves: [],
+    });
+    const pageRecentFirst = notesPage({
+      id: "page-recent-a",
+      projectId: "projRecent",
+      order: 0,
+      body: "match token third",
+    });
+
+    // Pages pre-sorted by project recency then page order, as buildSearchIndex's caller must supply.
+    const entries = buildSearchIndex(
+      [projRecent, projOlder],
+      [pageRecentFirst, pageOlderFirst, pageOlderSecond],
+    );
+
+    const results = searchIndex(entries, "match token");
+
+    expect(results.map((r) => r.pageId)).toEqual(["page-recent-a", "page-older-a", "page-older-b"]);
+  });
+
+  it("does not group results by project, page, or role", () => {
+    const proj = project();
+    const page = presetPage({
+      title: "match one",
+      devices: [
+        {
+          id: "dev1",
+          name: "match two",
+          settings: "match three",
+          params: [{ id: "p1", key: "match four", value: "unrelated" }],
+        },
+      ],
+    });
+    const entries = buildSearchIndex([proj], [page]);
+    const results = searchIndex(entries, "match");
+
+    // Flat list in input (entry) order — not grouped/sorted by role.
+    expect(results.map((r) => r.role)).toEqual([
+      "track-name",
+      "device-name",
+      "device-settings",
+      "param-key",
+    ]);
+  });
+
+  it("includes snippet, page title, role, and project name for each result (FR-5)", () => {
+    const proj = project({ name: "My Project" });
+    const page = notesPage({ title: "My Notes", body: "some content about a filter sweep" });
+    const entries = buildSearchIndex([proj], [page]);
+
+    const results = searchIndex(entries, "filter sweep");
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      role: "body",
+      pageId: page.id,
+      pageTitle: "My Notes",
+      projectId: proj.id,
+      projectName: "My Project",
+    });
+    expect(results[0].snippet).toContain("filter sweep");
+  });
+
+  it("does not mutate the input entries", () => {
+    const proj = project();
+    const entries = buildSearchIndex([proj], [notesPage({ body: "some match here" })]);
+    const snapshot = JSON.parse(JSON.stringify(entries));
+
+    searchIndex(entries, "match");
+
+    expect(entries).toEqual(snapshot);
   });
 });
