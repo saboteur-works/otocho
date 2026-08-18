@@ -97,6 +97,19 @@ describe("PageRepository", () => {
     expect(await repo.get("nope")).toBeNull();
   });
 
+  it("listAll returns every page across every project", async () => {
+    const a = await repo.create("proj1", "notes");
+    const b = await repo.create("proj1", "build-log");
+    const c = await repo.create("proj2", "presets");
+    const all = await repo.listAll();
+    expect(all).toHaveLength(3);
+    expect(all.map((p) => p.id).sort()).toEqual([a.id, b.id, c.id].sort());
+  });
+
+  it("listAll returns an empty array when there are no pages", async () => {
+    expect(await repo.listAll()).toEqual([]);
+  });
+
   it("renames: title + updatedAt change, id + type do not", async () => {
     const page = await repo.create("proj1", "notes", "Old name");
     const renamed = await repo.rename(page.id, "  New name  ");
