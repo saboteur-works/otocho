@@ -11,7 +11,8 @@
     "build-storybook": "pnpm --filter @otocho/ui build-storybook",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "reset-onboarding": "node scripts/reset-onboarding-seed.mjs"
   },
   "devDependencies": {
     "@testing-library/react": "^16.0.0",
