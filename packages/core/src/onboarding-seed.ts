@@ -60,6 +60,41 @@ export async function seedOnboardingExample(
   return deps.onboarding.markSeeded(project.id);
 }
 
+/**
+ * Per-install in-flight guard for {@link seedOnboardingExample} (FR-4). A
+ * plain "read marker, if absent create" has a race window between two
+ * concurrent callers both reading "absent" before either writes; this caches
+ * the in-flight seeding promise keyed by the `deps.onboarding` repository
+ * instance, so repeated calls sharing the same deps (e.g. two mounts racing
+ * on first load) share one execution instead of each racing the marker
+ * check. Calls with a different `deps.onboarding` instance (a different
+ * install/test) get their own independent guard.
+ */
+const inFlight = new WeakMap<OnboardingRepository, Promise<OnboardingMarker | null>>();
+
+/**
+ * Guarded entry point for seeding (FR-4). Prefer this over calling
+ * {@link seedOnboardingExample} directly from app code; it delegates to the
+ * same logic but collapses concurrent callers sharing the same
+ * `deps.onboarding` instance into a single in-flight execution.
+ */
+export function ensureOnboardingSeeded(
+  deps: SeedOnboardingExampleDeps,
+): Promise<OnboardingMarker | null> {
+  const existing = inFlight.get(deps.onboarding);
+  if (existing) {
+    return existing;
+  }
+
+  const run = seedOnboardingExample(deps).finally(() => {
+    if (inFlight.get(deps.onboarding) === run) {
+      inFlight.delete(deps.onboarding);
+    }
+  });
+  inFlight.set(deps.onboarding, run);
+  return run;
+}
+
 function applyNotesSeed(page: NotesPage, seeded: NotesPage): NotesPage {
   return { ...page, body: seeded.body };
 }

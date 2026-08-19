@@ -3,7 +3,7 @@ import type { StoragePort, StoredRecord } from "@otocho/storage";
 import { OnboardingRepository } from "./onboarding-repository";
 import { PageRepository } from "./page-repository";
 import { ProjectRepository } from "./project-repository";
-import { seedOnboardingExample } from "./onboarding-seed";
+import { ensureOnboardingSeeded, seedOnboardingExample } from "./onboarding-seed";
 import type { BuildLogPage, PresetPage } from "./page";
 
 /** In-memory StoragePort fake for fast, deterministic repository tests. */
@@ -108,5 +108,69 @@ describe("seedOnboardingExample", () => {
     const marker = await onboarding.getMarker();
     expect(marker).not.toBeNull();
     expect(marker!.exampleProjectId).toBe(allProjects[0].id);
+  });
+});
+
+describe("ensureOnboardingSeeded (FR-4 concurrency guard)", () => {
+  let storage: MemoryStorage;
+  let projects: ProjectRepository;
+  let pages: PageRepository;
+  let onboarding: OnboardingRepository;
+
+  beforeEach(() => {
+    storage = new MemoryStorage();
+    projects = new ProjectRepository({ storage });
+    pages = new PageRepository({ storage });
+    onboarding = new OnboardingRepository({ storage });
+  });
+
+  it("collapses concurrent calls sharing the same deps into a single seed", async () => {
+    const deps = { projects, pages, onboarding };
+
+    // Fire both calls without awaiting the first, so both race the marker
+    // check before either write has landed.
+    const [first, second, third] = await Promise.all([
+      ensureOnboardingSeeded(deps),
+      ensureOnboardingSeeded(deps),
+      ensureOnboardingSeeded(deps),
+    ]);
+
+    // Exactly one caller observes the created marker; the guard means every
+    // caller actually shares the same in-flight execution and its result.
+    expect(first).toEqual(second);
+    expect(second).toEqual(third);
+    expect(first).not.toBeNull();
+
+    const allProjects = await projects.list();
+    expect(allProjects).toHaveLength(1);
+
+    const projectPages = await pages.list(allProjects[0].id);
+    expect(projectPages).toHaveLength(3);
+
+    const marker = await onboarding.getMarker();
+    expect(marker).not.toBeNull();
+    expect(marker!.exampleProjectId).toBe(allProjects[0].id);
+  });
+
+  it("gives calls with a different deps.onboarding instance their own independent guard", async () => {
+    const otherStorage = new MemoryStorage();
+    const otherDeps = {
+      projects: new ProjectRepository({ storage: otherStorage }),
+      pages: new PageRepository({ storage: otherStorage }),
+      onboarding: new OnboardingRepository({ storage: otherStorage }),
+    };
+    const deps = { projects, pages, onboarding };
+
+    const [own, other] = await Promise.all([
+      ensureOnboardingSeeded(deps),
+      ensureOnboardingSeeded(otherDeps),
+    ]);
+
+    expect(own).not.toBeNull();
+    expect(other).not.toBeNull();
+    expect(own!.exampleProjectId).not.toBe(other!.exampleProjectId);
+
+    expect(await projects.list()).toHaveLength(1);
+    expect(await otherDeps.projects.list()).toHaveLength(1);
   });
 });
