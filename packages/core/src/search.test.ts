@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildSearchIndex, searchIndex, type SearchIndexEntry, type SearchIndexRole } from "./search";
 import type { BuildLogPage, NotesPage, Page, PresetPage } from "./page";
 import type { Project } from "./project";
+import { buildExampleProjectSeed } from "./onboarding-seed-content";
 
 function project(overrides: Partial<Project> = {}): Project {
   return {
@@ -375,5 +376,58 @@ describe("searchIndex", () => {
     searchIndex(entries, "match");
 
     expect(entries).toEqual(snapshot);
+  });
+});
+
+describe("onboarding example project is searchable (FR-7)", () => {
+  // No Search-specific integration work — the example project/pages are
+  // built with the same core factories as any project/page, so they must
+  // flow through buildSearchIndex/searchIndex unmodified.
+  const { project: exampleProject, notesPage: exampleNotesPage, buildLogPage: exampleBuildLogPage, presetsPage: examplePresetsPage } =
+    buildExampleProjectSeed({
+      now: () => "2026-01-01T00:00:00.000Z",
+      generateId: (() => {
+        let n = 0;
+        return () => `example-id-${n++}`;
+      })(),
+    });
+
+  const entries = buildSearchIndex(
+    [exampleProject],
+    [exampleNotesPage, exampleBuildLogPage, examplePresetsPage],
+  );
+
+  it("finds the example project via a substring of the Notes page body", () => {
+    const results = searchIndex(entries, "only surviving record");
+
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((r) => r.projectId === exampleProject.id)).toBe(true);
+    expect(results.some((r) => r.role === "body" && r.pageId === exampleNotesPage.id)).toBe(true);
+  });
+
+  it("finds the example project via a substring of a Build log move's text", () => {
+    const move = exampleBuildLogPage.moves[0];
+    expect(move).toBeDefined();
+
+    const results = searchIndex(entries, move.text.slice(0, 20));
+
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((r) => r.projectId === exampleProject.id)).toBe(true);
+    expect(
+      results.some((r) => r.role === "move" && r.pageId === exampleBuildLogPage.id),
+    ).toBe(true);
+  });
+
+  it("finds the example project via the Presets device name", () => {
+    const device = examplePresetsPage.devices[0];
+    expect(device).toBeDefined();
+
+    const results = searchIndex(entries, device.name);
+
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((r) => r.projectId === exampleProject.id)).toBe(true);
+    expect(
+      results.some((r) => r.role === "device-name" && r.pageId === examplePresetsPage.id),
+    ).toBe(true);
   });
 });
