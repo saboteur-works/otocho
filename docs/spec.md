@@ -100,15 +100,139 @@ People whose primary creative tool is a DAW and who accumulate more project cont
 
 ## Decisions (Resolved Open Questions)
 
-No open questions block the MVP — all were resolved during speccing, recorded here for traceability.
+No open questions block the MVP. OQ-1 through OQ-7 were resolved during
+speccing and are recorded here for traceability. OQ-3 (pricing) and OQ-8
+(licensing) were revisited later and carry live "Not yet decided" and "Not yet
+actioned" items — none of which gate MVP implementation, but which do need
+settling before launch and before the first external contribution.
 
 - **OQ-1 Preset page (FR-7):** hybrid — ordered device chain, each device a name + optional free-text, with opt-in key-value rows.
 - **OQ-2 Build log (FR-6):** one page, two sections — editable sketch canvas + append-only timestamped move feed with quick-add.
-- **OQ-3 Sync & pricing (FR-11):** sync in MVP, free, via BYOS (Dropbox API first, no backend); monetization deferred to collaboration/capacity.
+- **OQ-3 Sync & pricing (FR-11):** sync in MVP, free, via BYOS (Dropbox API
+  first, no backend); sync is explicitly **not** the paywall. Under BYOS the
+  marginal cost per user is zero — Otocho hosts no bytes — so gating sync would
+  charge for infrastructure it does not run and would gate the user from their
+  own storage folder.
+
+  **The paid boundary is capability, on one axis only, and it starts at v1.**
+  The MVP surface (projects, the three page types, search, onboarding, BYOS
+  sync) is free **for every user on every platform** — web, official desktop and
+  mobile builds, and self-built binaries alike, with no distinction between
+  personal, professional, and studio use. Nothing is sold before v1, including
+  the app-store listings, which carry the MVP build free. The v1 payload (Sketch
+  page, templates, reference page, to-do page, mobile quick-capture) is the
+  purchased line, and one purchase covers every platform. Packaging is never a
+  gate: native builds are distributed free from the project's own site as well
+  as through the stores. Store channels are **Apple's App Store (iOS and macOS)
+  and Google Play**; other marketplaces (Steam, Microsoft Store, Flathub) are
+  not yet decided and nothing here depends on them — Windows and Linux users
+  take the free direct download until that is settled. Alongside the v1
+  purchase: content sold as content (page packs, templates, preset libraries),
+  from v1 onward. Collaboration (v2) has genuine recurring cost and remains a
+  defensible subscription lane later. A managed first-party storage option for
+  users who want no Dropbox account would contradict the "no backend"
+  constraint and is a deliberate later pivot, not an MVP direction.
+
+  **Rejected: per-seat commercial-use licensing for studios** (Obsidian's
+  model). It was the weakest of the candidate lanes, it needs honor-system
+  enforcement, and — decisively — it puts a second qualifier on the free
+  promise: "free forever" would have had to become "free forever for personal
+  use," which is exactly the kind of asterisk this product's positioning is
+  built to avoid. Dropping it keeps the promise unqualified on both the platform
+  and the user axis, and it removes the need for a license that restricts
+  commercial use (see OQ-8).
+
+  **Rejected: selling the packaged MVP build as an app-store convenience
+  purchase** (Krita's model — a paid store listing beside a free direct
+  download). It is a real revenue source for Krita, but it is payment before v1,
+  which contradicts the decision above. From v1 the store listing sells the v1
+  unlock, which is capability rather than convenience, so this lane does not
+  survive as a distinct one.
+
+  **Rejected: gating the packaged native builds** (paying for the artifact
+  rather than the feature set). It reads as reasonable — it is Ardour's model —
+  but it prices a second axis, and the desktop+MVP cell is then governed by two
+  rules that disagree, forcing a silent exemption from the free-forever promise
+  for exactly the users most likely to hit it. For a tool that lives beside a
+  DAW, desktop is the primary form factor rather than a convenience, and it is
+  where local-first is strongest (real filesystem access via the Node adapter,
+  versus IndexedDB on web) — so "free on web only" would be a much thinner
+  promise than it sounds, thinning the free tier that is already this product's
+  weak point. Ardour can carry that model because it has no free tier to
+  protect; Otocho does. Also ruled out as exploitative regardless of tier:
+  project-count caps, paywalled export, and locking existing data behind a
+  lapsed payment.
+
+  **Consequence for Feature 6:** the desktop/mobile clients are a packaging and
+  distribution question, not a pricing one. The first paid moment is v1.
+
+  **Not yet decided:** actual v1 prices; which non-Apple/non-Google marketplaces
+  to add, if any; and how the v1 unlock is sold inside the mobile apps, given
+  that Apple and Google require their own in-app-purchase rails (and take a
+  commission) for a digital unlock, so selling it on the web and honoring it in
+  the apps may be preferable. Separately, whether the MVP surface is too thin is
+  an open product question, but not a pricing one — `docs/concept.md`'s Next
+  Steps already call for a willingness-to-capture test with target producers,
+  and that test, not an intuition about scope, is what should settle it. None of
+  these open items block Features 4 or 6, whose scope is unchanged either way.
 - **OQ-4 Mobile depth (FR-13):** reduced — full read/search + light capture; preset-chain authoring stays on desktop.
 - **OQ-5 Onboarding (FR-18):** first launch opens a prefilled, searchable example project dramatizing the durable-memory hook, plus a "create your first project" action.
 - **OQ-6 Data/conflict model (FR-12):** file-per-page + append-union move feed; same-page concurrent edits use last-write-wins with in-app conflict surfacing (no silent loss); CRDT deferred.
 - **OQ-7 Dropbox UX (FR-19/20):** local-first, connect-later; migrate local data on connect; disconnect/auth-fail/out-of-space keep working locally with a "not backed up" warning and no data loss.
+- **OQ-8 Licensing (cross-cutting):** **source-available with delayed OSS
+  conversion**, on the Functional Source License's shape — the repository is
+  public and readable, the license restricts redistribution and *competing* use
+  while permitting all other use including commercial and studio use, and each
+  release converts automatically to a permissive OSS license (Apache-2.0 or MIT)
+  two years after publication. The "Otocho" name is reserved as a trademark.
+  Contributor terms (a CLA or equivalent grant) are required from the first
+  external contribution.
+
+  **FSL rather than BUSL, because OQ-3 dropped per-seat commercial licensing.**
+  BUSL would be the choice if commercial use had to be restricted and sold
+  separately, since its Additional Use Grant is the licensor's to define. With
+  the free promise now unqualified on the user axis, nothing needs a
+  commercial-use restriction, and FSL's shorter window and narrower carve-out
+  are closer to this project's original open-source intention. Note the
+  consequence: the v1 payload is protected only for its two-year window, after
+  which that release is freely redistributable — that is the deal delayed
+  conversion makes, not an oversight.
+
+  **This supersedes an earlier GPL-3.0 decision, and the reason it changed is
+  worth recording.** GPL was chosen while the paid boundary was the packaged
+  native build — Ardour's model, where public source does not undercut selling
+  the artifact. OQ-3's rewrite moved the paid boundary to *capability*, so what
+  is now sold is v1's **code**, and copyleft guarantees every recipient the
+  right to compile and redistribute that code for free. GPL is therefore worst
+  at protecting the revenue lane OQ-3 leans on hardest. The licensing entry was
+  not revisited when the pricing axis moved; this entry is that correction.
+
+  **Second reason: GPL-3.0 conflicts with Apple App Store distribution**, which
+  OQ-3 now commits to. GPL forbids imposing the additional restrictions Apple's
+  terms carry; VLC's 2011 removal from the App Store is the standing example.
+  Sole copyright holdership is an escape hatch — a copyright holder is not bound
+  by the license they offer others — but a fragile one that breaks on the first
+  outside contribution merged under plain GPL. Source-available removes the
+  clash outright rather than routing around it.
+
+  **What this preserves.** Public source keeps the local-first BYOS claim
+  ("your data stays in your Dropbox; we run no servers and never see it")
+  auditable rather than merely asserted — that argument never depended on the
+  OSI label. Keeping source private would buy little anyway: there is no
+  backend, so the whole product is client code, and the react-dom web bundle is
+  already readable by anyone who opens the app. The delayed conversion honors
+  the project's original open-source intention on a timer instead of abandoning
+  it.
+
+  **What this gives up, plainly:** this is *not* open source and must not be
+  described as such during the protection window; forkability and the goodwill
+  that comes with it; Linux distro and Flathub packaging that assumes a FOSS
+  license; and some contributor interest.
+
+  **Not yet actioned:** the exact license text and the conversion window and
+  target license; the trademark filing; and the contributor-terms wording. All
+  three want legal review, and they are one conversation with one lawyer rather
+  than three. No `LICENSE` file has been added to the repo yet.
 
 ## Out of Scope (Deferred)
 

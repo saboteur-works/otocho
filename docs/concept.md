@@ -99,7 +99,15 @@ For the MVP it is deliberately **DAW-agnostic and manual-entry** — it doesn't 
 - Where is the Sketch page's feature line — how many tracks, region length, note-editing depth (quantize, velocity, tempo), built-in instruments — so it stays a sketch tool, not a mini-DAW?
 - Which audio/MIDI engine underpins cross-platform playback, and does it realistically cover desktop, web, *and* mobile, or does one platform get a reduced experience first?
 - What does sharing mean concretely (read-only link, export, account-to-account), and does it pull collaboration forward?
-- Free vs. paid, and is sync the paywall? This shapes whether sync must be in MVP.
+- ~~Free vs. paid, and is sync the paywall?~~ **Resolved** during speccing —
+  see OQ-3 and OQ-8 in `docs/spec.md`. Sync ships in MVP and is free; it is not
+  the paywall, because BYOS means it costs Otocho nothing per user. The paid
+  boundary is capability, not packaging: the MVP surface is free for every user
+  on every platform, nothing is sold before v1, and the v1 payload is the
+  purchased line. Revenue comes from paid v1 upgrades, sold content, and a
+  possible collaboration subscription at v2. Licensing is
+  source-available with delayed OSS conversion, with the name held as a
+  trademark — see OQ-8, which supersedes an earlier GPL-3.0 decision.
 - Post-MVP, which data-ingestion option(s) to pursue — ranked on the fidelity vs. DAW-agnosticism vs. maintenance-cost tradeoff — and which DAWs to support first if native parsing or a companion plugin is chosen?
 
 ### Next Steps
