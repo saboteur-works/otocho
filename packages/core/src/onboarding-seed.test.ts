@@ -174,3 +174,87 @@ describe("ensureOnboardingSeeded (FR-4 concurrency guard)", () => {
     expect(await otherDeps.projects.list()).toHaveLength(1);
   });
 });
+
+describe("onboarding example project is ordinary data (FR-3, FR-8)", () => {
+  let storage: MemoryStorage;
+  let projects: ProjectRepository;
+  let pages: PageRepository;
+  let onboarding: OnboardingRepository;
+
+  beforeEach(() => {
+    storage = new MemoryStorage();
+    projects = new ProjectRepository({ storage });
+    pages = new PageRepository({ storage });
+    onboarding = new OnboardingRepository({ storage });
+  });
+
+  it("supports rename, page add/reorder/delete, soft-delete, restore, and purge identically to a user project, and purge never resurrects the seed", async () => {
+    const marker = await seedOnboardingExample({ projects, pages, onboarding });
+    expect(marker).not.toBeNull();
+    const exampleProjectId = marker!.exampleProjectId;
+
+    // rename() — same behavior/return shape as ProjectRepository.test.ts's
+    // "renames in place" case: name + updatedAt change, id + createdAt don't.
+    const before = await projects.get(exampleProjectId);
+    expect(before).not.toBeNull();
+    const renamed = await projects.rename(exampleProjectId, "My renamed project");
+    expect(renamed.id).toBe(exampleProjectId);
+    expect(renamed.createdAt).toBe(before!.createdAt);
+    expect(renamed.name).toBe("My renamed project");
+    expect(renamed.updatedAt >= before!.updatedAt).toBe(true);
+
+    // PageRepository add — same shape as page-repository.test.ts's "creates a
+    // page and reads it back": ascending order, correct projectId/type.
+    const existingPages = await pages.list(exampleProjectId);
+    expect(existingPages).toHaveLength(3);
+    const added = await pages.create(exampleProjectId, "notes", "Extra notes");
+    expect(added.projectId).toBe(exampleProjectId);
+    expect(added.type).toBe("notes");
+    expect(added.order).toBe(existingPages[existingPages.length - 1].order + 1);
+
+    let currentPages = await pages.list(exampleProjectId);
+    expect(currentPages).toHaveLength(4);
+
+    // PageRepository.reorder — move the newly-added page to the front, same
+    // as page-repository.test.ts's "moves a page to a new index" case.
+    const reordered = await pages.reorder(added.id, 0);
+    expect(reordered[0].id).toBe(added.id);
+    expect(reordered.map((p) => p.order)).toEqual([0, 1, 2, 3]);
+
+    // PageRepository.delete — same as page-repository.test.ts's "deletes a
+    // page permanently" case.
+    await pages.delete(added.id);
+    expect(await pages.get(added.id)).toBeNull();
+    currentPages = await pages.list(exampleProjectId);
+    expect(currentPages).toHaveLength(3);
+
+    // ProjectRepository.softDelete / restore — same as project-repository
+    // .test.ts's "soft-deletes, then restores" case.
+    const deleted = await projects.softDelete(exampleProjectId);
+    expect(deleted.deletedAt).not.toBeNull();
+    expect(await projects.get(exampleProjectId)).not.toBeNull();
+    expect((await projects.listDeleted()).map((p) => p.id)).toEqual([exampleProjectId]);
+    expect(await projects.list()).toHaveLength(0);
+
+    const restored = await projects.restore(exampleProjectId);
+    expect(restored.deletedAt).toBeNull();
+    expect((await projects.list()).map((p) => p.id)).toEqual([exampleProjectId]);
+
+    // ProjectRepository.purge — same as project-repository.test.ts's
+    // "purges permanently" case.
+    await projects.softDelete(exampleProjectId);
+    await projects.purge(exampleProjectId);
+    expect(await projects.get(exampleProjectId)).toBeNull();
+    expect(await projects.listDeleted()).toHaveLength(0);
+
+    // FR-3/D-4: the marker, not the project's existence, gates seeding — a
+    // full purge of the example project must never cause re-seeding.
+    const secondSeedResult = await seedOnboardingExample({ projects, pages, onboarding });
+    expect(secondSeedResult).toBeNull();
+    expect(await projects.list()).toHaveLength(0);
+
+    const finalMarker = await onboarding.getMarker();
+    expect(finalMarker).not.toBeNull();
+    expect(finalMarker!.exampleProjectId).toBe(exampleProjectId);
+  });
+});
