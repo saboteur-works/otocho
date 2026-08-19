@@ -6,3 +6,4 @@ export * from "./search";
 export * from "./onboarding";
 export * from "./onboarding-repository";
 export * from "./onboarding-seed-content";
+export * from "./onboarding-seed";
