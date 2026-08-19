@@ -6,7 +6,7 @@ Otocho is a notebook for your audio projects that lives **outside** your DAW. In
 
 This handbook walks through everything you can do today.
 
-> **Where your work lives.** Otocho runs entirely in your browser and saves to it automatically — there's no account and no sign-in. Everything you type is stored locally on the machine you're using. (Cross-device sync and search are on the roadmap but not yet available.)
+> **Where your work lives.** Otocho runs entirely in your browser and saves to it automatically — there's no account and no sign-in. Everything you type is stored locally on the machine you're using. (Cross-device sync is on the roadmap but not yet available.)
 
 ---
 
@@ -72,6 +72,18 @@ To **reorder** pages, grab the dotted handle on the left of a row and drag it up
 ### Saving
 
 You never press Save inside a page editor. Otocho **autosaves** as you type — a small "Saving…" / "Saved" note appears so you know it's captured. (Project and page *renames* are the one place you confirm with a Save button.)
+
+---
+
+## Search
+
+Click **Search** in the header (from any screen) to open the search overlay, then start typing.
+
+Search looks across **every project and page you have** — not just the one you're currently viewing — matching notes bodies, build-log sketches and moves, and preset track/device/parameter names and values. There's no separate "recent items" list before you type; the overlay stays quiet until you enter a query.
+
+Results are a flat list, each row showing the project and page the match came from, which field matched (e.g. "Sketch", "Param value"), and a short snippet around the match. Click a result to jump straight to that page in its project.
+
+Search is manual-entry, exact-substring matching (case-insensitive) — there's no fuzzy matching, ranking, or typo tolerance yet.
 
 ---
 

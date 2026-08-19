@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   PageRepository,
   ProjectRepository,
@@ -41,12 +41,20 @@ export function ProjectView({
 }: ProjectViewProps) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [project, setProject] = useState<Project | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  // Seeded once from a `?page=<id>` hint (e.g. from search navigation, FR-6)
+  // so a deep link can preselect a non-first page. The lazy initializer only
+  // runs on mount, so later manual selection in `PageList` is never fought.
+  // With no hint, this stays `null` and the auto-select effect below defaults
+  // to the first page exactly as before.
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(
+    () => searchParams.get("page"),
+  );
 
   const { pages, loading, create, rename, reorder, mutatePage, deletePage } = usePages(
     id ?? "",
@@ -63,13 +71,20 @@ export function ProjectView({
     return () => { active = false; };
   }, [id, repo]);
 
-  // Select the first page on initial load, or when pages change and nothing is selected.
+  // Select the first page on initial load, or when pages change and nothing
+  // is (validly) selected. Skipped while pages are still loading so a
+  // `?page=` hint seeded above isn't wiped by the transient empty `pages: []`
+  // that `usePages` starts with — once loaded, an existing hinted page is
+  // left alone (the `!pages.find` check is false for it), a stale/invalid
+  // hint falls back to the first page, and no hint still defaults to the
+  // first page exactly as before.
   useEffect(() => {
+    if (loading) return;
     if (pages.length > 0 && (selectedPageId === null || !pages.find((p) => p.id === selectedPageId))) {
       setSelectedPageId(pages[0].id);
     }
     if (pages.length === 0) setSelectedPageId(null);
-  }, [pages, selectedPageId]);
+  }, [pages, selectedPageId, loading]);
 
   function startEditing() {
     if (!project) return;

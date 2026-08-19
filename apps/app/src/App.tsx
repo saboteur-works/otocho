@@ -2,15 +2,19 @@ import { HashRouter, Link, Route, Routes } from "react-router-dom";
 import { ProjectsHome } from "./projects/ProjectsHome";
 import { ProjectView } from "./projects/ProjectView";
 import { TrashView } from "./projects/TrashView";
+import { SearchOverlay } from "./search/SearchOverlay";
 
 export function App() {
   return (
     <HashRouter>
       <div className="flex min-h-screen flex-col">
-        <header className="mx-auto w-full max-w-2xl flex-shrink-0 px-6 pb-8 pt-16 flex flex-col gap-2">
-          <p className="font-mono text-xs uppercase tracking-label text-fg-tertiary">
-            音帳 — sound notebook
-          </p>
+        <header className="mx-auto flex w-full max-w-2xl flex-shrink-0 flex-col gap-2 px-6 pb-8 pt-16">
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-xs uppercase tracking-label text-fg-tertiary">
+              音帳 — sound notebook
+            </p>
+            <SearchOverlay />
+          </div>
           <Link to="/" className="w-fit">
             <h1 className="font-display text-4xl font-bold tracking-display text-fg-primary">
               Otocho

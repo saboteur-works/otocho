@@ -15,6 +15,18 @@ export {
   AlertDialogCancel,
 } from "./components/ui/alert-dialog";
 export {
+  Dialog,
+  DialogTrigger,
+  DialogPortal,
+  DialogClose,
+  DialogOverlay,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "./components/ui/dialog";
+export {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuPortal,

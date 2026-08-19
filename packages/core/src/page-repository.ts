@@ -57,6 +57,15 @@ export class PageRepository {
     return all.filter((p) => p.projectId === projectId).sort(byOrder);
   }
 
+  /**
+   * Every persisted page, across every project (FR-9). `order` is
+   * project-scoped and not meaningful across projects, so pages here are
+   * returned unsorted — callers apply their own order.
+   */
+  async listAll(): Promise<Page[]> {
+    return this.storage.list<Page>(COLLECTION);
+  }
+
   async rename(id: string, title: string): Promise<Page> {
     const trimmed = title.trim();
     if (trimmed.length === 0) {
