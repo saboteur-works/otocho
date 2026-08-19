@@ -61,7 +61,8 @@ describe("SearchOverlay", () => {
     await user.type(screen.getByRole("textbox"), "kick");
 
     expect(screen.queryByText("Type to search your projects and pages.")).toBeNull();
-    await screen.findByText("1 result");
+    await screen.findByText("kick drum tuning", { exact: false });
+    expect(screen.getByText("Alpha", { exact: false })).toBeTruthy();
   });
 
   it("dismisses on Escape without navigating", async () => {
