@@ -105,6 +105,16 @@ this feature must preserve that guarantee — never regress to requiring
 Dropbox — while adding the connect/migrate/disconnect/failure-handling
 lifecycle around it.
 
+**Packaging guardrail (from `docs/spec.md` OQ-3):** build the Dropbox connect
+flow as OAuth PKCE with the *redirect mechanism injected per platform*, rather
+than baking in a loopback-`localhost` redirect. The web app can use a hosted
+redirect URI, but mobile needs a registered custom scheme or universal link,
+and a sandboxed macOS build cannot rely on a loopback listener. Keeping the
+redirect handling behind a small platform seam costs almost nothing now and
+avoids reworking the connect flow when Feature 6 ships to the app stores. This
+is a design guardrail, not a scope change — Feature 4's requirements
+(FR-11, FR-12, FR-19, FR-20) are unchanged.
+
 ### Feature 5: Onboarding example project
 
 **Value:** A first-time producer understands what Otocho is for and how to
@@ -151,6 +161,25 @@ independently usable against local storage — but the cross-device value
 proposition (US-6, US-7) is materially weaker until sync ships too; whether
 this feature must ship together with sync for real value is deferred to
 Feature 6's own pipeline run (Decision #5) rather than decided here.
+
+**Packaging guardrails (from `docs/spec.md` OQ-3 and OQ-8):** this feature is a
+packaging and distribution question, not a pricing one — the MVP surface is
+free for every user on every platform, and the first paid moment is v1, so
+nothing here is gated. Store channels are Apple's App Store (iOS and macOS) and
+Google Play; other marketplaces are undecided and Windows/Linux take the free
+direct download. Two design constraints follow:
+
+- **Design the desktop `StoragePort` adapter around a user-granted folder
+  handle, not a path string.** Mac App Store distribution requires App Sandbox
+  entitlements, under which access to a user-chosen folder runs through
+  security-scoped bookmarks that must be persisted and re-resolved each launch —
+  a plain Node `fs` adapter that assumes an arbitrary writable path would need
+  reworking. A direct-download Electron build has no such restriction, so this
+  only binds if the MAS channel is taken; the handle-shaped design costs nothing
+  either way. Note also that Electron's MAS build variant is materially fiddlier
+  than the direct-download path.
+- **Keep the per-platform OAuth redirect seam** that Feature 4 introduces (see
+  its guardrail above) intact through the native shells.
 
 ## Coverage check
 
