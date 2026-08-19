@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { SearchResult } from "@otocho/core";
 import { SearchResults } from "./SearchResults";
 
@@ -63,5 +64,21 @@ describe("SearchResults", () => {
     expect(screen.getByText("Device settings")).toBeTruthy();
     expect(screen.getByText("Param key")).toBeTruthy();
     expect(screen.getByText("Param value")).toBeTruthy();
+  });
+
+  it("calls onSelect with the chosen result when a row is activated", async () => {
+    const results: SearchResult[] = [
+      result({ pageId: "page-1", pageTitle: "Notes", projectName: "Alpha" }),
+      result({ pageId: "page-2", pageTitle: "Rack", projectName: "Beta" }),
+    ];
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+
+    render(<SearchResults results={results} query="kick" onSelect={onSelect} />);
+
+    await user.click(screen.getAllByRole("button")[1]);
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith(results[1]);
   });
 });

@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -5,6 +7,7 @@ import {
   DialogTrigger,
   Input,
 } from "@otocho/ui";
+import type { SearchResult } from "@otocho/core";
 import { SearchResults } from "./SearchResults";
 import { useSearch, type UseSearchOptions } from "./useSearch";
 
@@ -15,12 +18,25 @@ import { useSearch, type UseSearchOptions } from "./useSearch";
  * (FR-1, D-3). Typing drives {@link useSearch}; result rows are rendered by
  * {@link SearchResults}.
  */
-export function SearchOverlay({ searchOptions }: { searchOptions?: UseSearchOptions } = {}) {
+export interface SearchOverlayProps {
+  searchOptions?: UseSearchOptions;
+}
+
+export function SearchOverlay({ searchOptions }: SearchOverlayProps = {}) {
   const { query, setQuery, results, loading } = useSearch(searchOptions);
   const hasQuery = query.trim().length > 0;
+  const navigate = useNavigate();
+  // Controlled so selecting a result can close the overlay from here (FR-6),
+  // in addition to Radix's own Escape/overlay-click dismissal.
+  const [open, setOpen] = useState(false);
+
+  function handleSelect(result: SearchResult) {
+    setOpen(false);
+    navigate(`/projects/${result.projectId}?page=${result.pageId}`);
+  }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button
           type="button"
@@ -42,7 +58,7 @@ export function SearchOverlay({ searchOptions }: { searchOptions?: UseSearchOpti
           loading ? (
             <p className="text-sm text-fg-secondary">Searching…</p>
           ) : (
-            <SearchResults results={results} query={query} />
+            <SearchResults results={results} query={query} onSelect={handleSelect} />
           )
         ) : (
           <p className="text-sm text-fg-secondary">
