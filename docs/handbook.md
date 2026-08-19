@@ -8,6 +8,8 @@ This handbook walks through everything you can do today.
 
 > **Where your work lives.** Otocho runs entirely in your browser and saves to it automatically — there's no account and no sign-in. Everything you type is stored locally on the machine you're using. (Cross-device sync is on the roadmap but not yet available.)
 
+> **First launch.** The first time you open Otocho, it seeds one example project — with a Notes, Build log, and Presets page already filled in — so you can see what each page type looks like and try Search before creating anything of your own. It behaves exactly like any project you create yourself: rename it, add to it, or delete it whenever you like. Use the **"Name a new project…"** field to start your own project alongside it at any time.
+
 ---
 
 ## The big picture

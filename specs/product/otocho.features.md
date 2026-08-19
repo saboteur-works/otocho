@@ -1,7 +1,7 @@
 # Feature Breakdown: Otocho MVP
 
 **Parent spec:** `docs/spec.md` (Otocho MVP, FR-1..FR-20)
-**Status:** Draft (Features 1–2 delivered; Features 3–6 not yet started)
+**Status:** Draft (Features 1, 2, 3, 5 delivered; Features 4 and 6 not yet started)
 
 **Note on tree layout:** This document and its sibling task lists live under
 `specs/` even though the rest of this repo's spec ladder (the parent product
@@ -16,11 +16,11 @@ being edited — they remain at `docs/spec.md`,
 ## Overview
 
 This breakdown slices the Otocho MVP spec into independently shippable vertical
-features. Two features — Projects and Pages — have already shipped and are
-recorded here as delivered so the breakdown reflects reality rather than
-re-proposing finished work. The remaining MVP surface (search, Dropbox BYOS
-sync, onboarding's example project, and the desktop/mobile clients) is broken
-into four further features.
+features. Four features — Projects, Pages, Search, and the onboarding
+example project — have already shipped and are recorded here as delivered so
+the breakdown reflects reality rather than re-proposing finished work. The
+remaining MVP surface (Dropbox BYOS sync and the desktop/mobile clients) is
+broken into two further features.
 
 ### Feature 1: Projects
 
@@ -72,19 +72,14 @@ results list, open-on-select).
 **User stories:** US-8
 **Depends on:** 2
 **Branch suggestion:** feat/search
-**Notes:** Reads existing Projects/Pages data only; adds no new persisted
+**Notes:** Delivered 2026-08-18 (merged in `5070d1a`). Full spec at
+`specs/features/search.md`, tasks at `specs/features/search/tasks.md`
+(8 tasks). Reads existing Projects/Pages data only; adds no new persisted
 entity beyond whatever index it builds. Does not depend on Dropbox sync —
 search operates over whatever data is present locally, synced or not. Search
-is the current pipeline run's feature and indexes flat full-text with
-match-role labels — see Decisions #1 and #2. Build note: `PageRepository`
-currently exposes only `list(projectId)`
-(`packages/core/page-repository.ts:55-58`) and has no cross-project "all
-pages" method, whereas `ProjectRepository.list()` already returns all
-projects (`packages/core/project-repository.ts:48-49`). Search will need a
-`PageRepository.listAll()` following that same pattern — a small addition at
-the existing seam, requiring no `StoragePort` change, but an explicit piece
-of work rather than a free one; the task breakdown for this feature should
-include it.
+indexes flat full-text with match-role labels — see Decisions #1 and #2. Build note (resolved): this feature added
+`PageRepository.listAll()` for cross-project reads, following the pattern
+`ProjectRepository.list()` already used, with no `StoragePort` change.
 
 ### Feature 4: Dropbox BYOS sync & conflict surfacing
 
@@ -123,11 +118,14 @@ seed-on-first-run), interface (example project presentation + a prominent
 **User stories:** US-10
 **Depends on:** 2, 3
 **Branch suggestion:** feat/onboarding-example
-**Notes:** Depends on Pages (2) for the three page types the example must
-demonstrate, and on Search (3) because FR-18 requires the example project be
-searchable, not just browsable. Search ships before this feature (Decision
-#1), so this dependency is satisfied by build order rather than needing a
-stub — see Decision #4.
+**Notes:** Delivered 2026-08-18. Full spec at
+`specs/features/onboarding-example.md`, tasks at
+`specs/features/onboarding-example/tasks.md` (10/10 done). Depends on Pages
+(2) for the three page types the example must demonstrate, and on Search (3)
+because FR-18 requires the example project be searchable, not just
+browsable. Search ships before this feature (Decision #1), so this
+dependency is satisfied by build order rather than needing a stub — see
+Decision #4.
 
 ### Feature 6: Desktop & mobile clients
 
@@ -182,10 +180,10 @@ Feature 6's own pipeline run (Decision #5) rather than decided here.
 ## Summary
 
 - Total features: 6
-- Suggested build order: 1 → 2 (both delivered), then 3 (Search ships first
-  per Decision #1; Feature 4 has no hard dependency on it and can follow),
-  then 5 (needs 2 and 3), then 6 (needs 2 and 3; benefits from 4 shipping
-  alongside or before it for full cross-device value, per Decision #5).
+- Suggested build order: 1 → 2 → 3 → 5, all delivered. Remaining: 4
+  (no hard dependency on the others) and 6 (needs 2 and 3, both shipped;
+  benefits from 4 shipping alongside or before it for full cross-device
+  value, per Decision #5).
 - Independently shippable: 1, 2, 3, 4
 - Risks: Feature 4 (Dropbox sync) is the highest-risk slice — it introduces
   the only new persistence adapter with real conflict semantics (append-union
@@ -195,10 +193,10 @@ Feature 6's own pipeline run (Decision #5) rather than decided here.
   mostly platform-adapter and packaging work around an already-built
   codebase, but its dependency on Search (3) and loose coupling to Sync (4)
   mean its true "done" bar (full cross-device value) lands later than its
-  formal dependency graph implies. Feature 5 (onboarding example) is low risk
-  in isolation but is sequence-sensitive: if Search (3) slips, the example
-  project's "searchable" requirement (FR-18) either needs an interim stub or
-  the feature needs to be resequenced after Search actually ships.
+  formal dependency graph implies. Feature 5's sequence risk (its FR-18
+  "searchable" requirement depending on Search) did not materialize —
+  Search shipped first, so the example project was searchable through the
+  existing index with no stub needed.
 
 ## Decisions
 
