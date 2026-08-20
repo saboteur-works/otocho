@@ -1,10 +1,15 @@
-import { DropboxConnectionRepository } from "@otocho/core";
+import { DropboxConnectionRepository, PageConflictRepository } from "@otocho/core";
 import type { DropboxAuthPort } from "@otocho/storage";
 import { WebStorageAdapter } from "@otocho/storage/web";
 import { WebDropboxAuth } from "./web-dropbox-auth";
 
 /** The app's shared, IndexedDB-backed Dropbox connection-marker repository. */
 export const dropboxConnectionRepo = new DropboxConnectionRepository({
+  storage: new WebStorageAdapter(),
+});
+
+/** The app's shared, IndexedDB-backed pending page-conflicts repository. */
+export const pageConflictsRepo = new PageConflictRepository({
   storage: new WebStorageAdapter(),
 });
 
