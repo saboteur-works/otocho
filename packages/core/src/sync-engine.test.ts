@@ -176,6 +176,54 @@ describe("SyncEngine", () => {
     });
   });
 
+  describe("pullCollection — delete-vs-edit conflict via deletedAt tombstone (FR-16, Task 13)", () => {
+    function deletedRecord(id: string, updatedAt: string) {
+      return { ...record(id, updatedAt), deletedAt: updatedAt };
+    }
+
+    it("syncs a delete-only change cleanly with no conflict, propagating the tombstone", async () => {
+      await remote.put(COLLECTION, record("p1", "2024-01-01T00:00:00.000Z"));
+      await engine.pullCollection(COLLECTION);
+
+      // Only remote is soft-deleted after that; local made no concurrent edit.
+      await remote.put(COLLECTION, deletedRecord("p1", "2024-03-01T00:00:00.000Z"));
+
+      await engine.pullCollection(COLLECTION);
+
+      const localRecord = await local.get(COLLECTION, "p1");
+      expect(localRecord).toEqual(deletedRecord("p1", "2024-03-01T00:00:00.000Z"));
+      const conflicts = await new PageConflictRepository({ storage: local }).list();
+      expect(conflicts).toHaveLength(0);
+    });
+
+    it("records a conflict, preserving both versions, when one side is soft-deleted and the other edited", async () => {
+      const conflictRepo = new PageConflictRepository({ storage: local });
+      const conflictEngine = new SyncEngine({ local, remote, pageConflictRepository: conflictRepo });
+
+      await remote.put(COLLECTION, record("p1", "2024-01-01T00:00:00.000Z"));
+      await conflictEngine.pullCollection(COLLECTION);
+
+      // Local edits the page while remote independently soft-deletes it.
+      const localEdited = record("p1", "2024-02-01T00:00:00.000Z");
+      await local.put(COLLECTION, localEdited);
+      const remoteDeleted = deletedRecord("p1", "2024-03-01T00:00:00.000Z");
+      await remote.put(COLLECTION, remoteDeleted);
+
+      await conflictEngine.pullCollection(COLLECTION);
+
+      // Local is left untouched rather than delete-wins or edit-wins...
+      const localRecord = await local.get(COLLECTION, "p1");
+      expect(localRecord).toEqual(localEdited);
+
+      // ...and both the edited and tombstoned versions are recoverable from
+      // the same PageConflictRepository path Task 12 established.
+      const conflict = await conflictRepo.get("p1");
+      expect(conflict).not.toBeNull();
+      expect(conflict?.local).toEqual(localEdited);
+      expect(conflict?.remote).toEqual(remoteDeleted);
+    });
+  });
+
   describe("pullCollection — preserve both versions on conflict (FR-10, Task 12)", () => {
     it("records a pending conflict with both versions, recoverable independently of local storage", async () => {
       const conflictRepo = new PageConflictRepository({ storage: local });

@@ -16,6 +16,15 @@ import type { Page } from "./page";
  * log's `sketch` field, and Task 14 is expected to exclude `moves[]` from
  * whatever `updatedAt` comparison feeds this function, not to change this
  * function.
+ *
+ * A soft delete (`deletedAt`, FR-16) is also not special-cased: `softDelete`
+ * stamps `updatedAt` through the same `mutate` path as any other edit, so a
+ * page deleted on one client while edited on the other already surfaces as
+ * "both sides changed since last sync" here, and is routed through this same
+ * preserve-both conflict path rather than resolved by delete-wins or
+ * edit-wins. A plain delete with no concurrent edit on the other side is,
+ * correctly, not a conflict — it's an ordinary newer-wins update whose
+ * tombstone propagates like any other field change.
  */
 export function detectConflict(local: Page, remote: Page, lastSyncedAt: string): boolean {
   return local.updatedAt > lastSyncedAt && remote.updatedAt > lastSyncedAt;
