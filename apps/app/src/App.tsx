@@ -1,4 +1,7 @@
 import { HashRouter, Link, Route, Routes } from "react-router-dom";
+import { ConflictResolution } from "./dropbox/ConflictResolution";
+import { ConnectDropbox } from "./dropbox/ConnectDropbox";
+import { SyncStatusBanner } from "./dropbox/SyncStatusBanner";
 import { ProjectsHome } from "./projects/ProjectsHome";
 import { ProjectView } from "./projects/ProjectView";
 import { TrashView } from "./projects/TrashView";
@@ -13,7 +16,16 @@ export function App() {
             <p className="font-mono text-xs uppercase tracking-label text-fg-tertiary">
               音帳 — sound notebook
             </p>
-            <SearchOverlay />
+            <div className="flex items-center gap-4">
+              <Link
+                to="/conflicts"
+                className="font-mono text-xs uppercase tracking-label text-fg-tertiary hover:text-fg-primary"
+              >
+                Conflicts
+              </Link>
+              <ConnectDropbox />
+              <SearchOverlay />
+            </div>
           </div>
           <Link to="/" className="w-fit">
             <h1 className="font-display text-4xl font-bold tracking-display text-fg-primary">
@@ -21,6 +33,8 @@ export function App() {
             </h1>
           </Link>
         </header>
+
+        <SyncStatusBanner />
 
         <main className="flex-1">
           <Routes>
@@ -39,6 +53,14 @@ export function App() {
                 <NarrowContent>
                   <TrashView />
                 </NarrowContent>
+              }
+            />
+            <Route
+              path="/conflicts"
+              element={
+                <WideContent>
+                  <ConflictResolution />
+                </WideContent>
               }
             />
           </Routes>

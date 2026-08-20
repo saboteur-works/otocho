@@ -188,7 +188,7 @@ describe("onboarding example project is ordinary data (FR-3, FR-8)", () => {
     onboarding = new OnboardingRepository({ storage });
   });
 
-  it("supports rename, page add/reorder/delete, soft-delete, restore, and purge identically to a user project, and purge never resurrects the seed", async () => {
+  it("supports rename, page add/reorder/soft-delete, project soft-delete, restore, and purge identically to a user project, and purge never resurrects the seed", async () => {
     const marker = await seedOnboardingExample({ projects, pages, onboarding });
     expect(marker).not.toBeNull();
     const exampleProjectId = marker!.exampleProjectId;
@@ -221,10 +221,12 @@ describe("onboarding example project is ordinary data (FR-3, FR-8)", () => {
     expect(reordered[0].id).toBe(added.id);
     expect(reordered.map((p) => p.order)).toEqual([0, 1, 2, 3]);
 
-    // PageRepository.delete — same as page-repository.test.ts's "deletes a
-    // page permanently" case.
-    await pages.delete(added.id);
-    expect(await pages.get(added.id)).toBeNull();
+    // PageRepository.softDelete — same as page-repository.test.ts's
+    // "softDelete sets the tombstone without removing the underlying
+    // record" case.
+    const softDeleted = await pages.softDelete(added.id);
+    expect(softDeleted.deletedAt).not.toBeNull();
+    expect(await pages.get(added.id)).not.toBeNull();
     currentPages = await pages.list(exampleProjectId);
     expect(currentPages).toHaveLength(3);
 

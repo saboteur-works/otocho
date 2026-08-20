@@ -1,7 +1,7 @@
 # Feature Breakdown: Otocho MVP
 
 **Parent spec:** `docs/spec.md` (Otocho MVP, FR-1..FR-20)
-**Status:** Draft (Features 1, 2, 3, 5 delivered; Features 4 and 6 not yet started)
+**Status:** Draft (Features 1, 2, 3, 4, 5 delivered; Feature 6 not yet started)
 
 **Note on tree layout:** This document and its sibling task lists live under
 `specs/` even though the rest of this repo's spec ladder (the parent product
@@ -97,13 +97,19 @@ versions).
 **User stories:** US-6, US-7, US-11
 **Depends on:** 2
 **Branch suggestion:** feat/dropbox-sync
-**Notes:** Builds on the file-per-page storage shape Pages already
-established (FR-12's scoping requirement is structurally satisfied; this
-feature adds the sync engine and conflict UI on top of it). Local-first
-operation (FR-19, FR-20) is already true today because there is no sync yet;
-this feature must preserve that guarantee — never regress to requiring
-Dropbox — while adding the connect/migrate/disconnect/failure-handling
-lifecycle around it.
+**Notes:** Delivered 2026-08-20 on branch `feat/dropbox-sync`, merged into
+`development`. Full spec at `specs/features/dropbox-sync.md`, tasks at
+`specs/features/dropbox-sync/tasks.md` (15/15 done). Builds on the
+file-per-page storage shape Pages already established (FR-12's scoping
+requirement is structurally satisfied; this feature adds the sync engine and
+conflict UI on top of it). Local-first operation (FR-19, FR-20) is preserved —
+the app never regresses to requiring Dropbox — with the
+connect/migrate/disconnect/failure-handling lifecycle added around it.
+Verified against the local test suite (312 tests) and exercised manually in
+the running app; not yet verified against a live Dropbox account (no
+registered Dropbox app exists yet — Dropbox has no sandbox/mock API, so this
+requires a real account) — tracked separately as a release blocker, not a gap
+in this feature's own implementation.
 
 **Packaging guardrail (from `docs/spec.md` OQ-3):** build the Dropbox connect
 flow as OAuth PKCE with the *redirect mechanism injected per platform*, rather
@@ -209,10 +215,9 @@ direct download. Two design constraints follow:
 ## Summary
 
 - Total features: 6
-- Suggested build order: 1 → 2 → 3 → 5, all delivered. Remaining: 4
-  (no hard dependency on the others) and 6 (needs 2 and 3, both shipped;
-  benefits from 4 shipping alongside or before it for full cross-device
-  value, per Decision #5).
+- Suggested build order: 1 → 2 → 3 → 5 → 4, all delivered. Remaining: 6
+  (needs 2 and 3, both shipped; benefits from 4 shipping alongside or before
+  it for full cross-device value, per Decision #5 — 4 has now shipped).
 - Independently shippable: 1, 2, 3, 4
 - Risks: Feature 4 (Dropbox sync) is the highest-risk slice — it introduces
   the only new persistence adapter with real conflict semantics (append-union

@@ -25,6 +25,7 @@ function notesPage(overrides: Partial<NotesPage> = {}): NotesPage {
     order: 0,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    deletedAt: null,
     body: "Some notes body",
     ...overrides,
   };
@@ -39,6 +40,7 @@ function buildLogPage(overrides: Partial<BuildLogPage> = {}): BuildLogPage {
     order: 1,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    deletedAt: null,
     sketch: "An arrangement sketch",
     moves: [
       { id: "m1", at: "2026-01-01T00:00:00.000Z", text: "Bounced the drums" },
@@ -57,6 +59,7 @@ function presetPage(overrides: Partial<PresetPage> = {}): PresetPage {
     order: 2,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    deletedAt: null,
     devices: [
       {
         id: "dev1",

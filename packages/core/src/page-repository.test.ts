@@ -137,22 +137,49 @@ describe("PageRepository", () => {
     expect((fetched as NotesPage).body).toBe("some text");
   });
 
-  it("mutate throws for a missing page", async () => {
-    const repo = makeRepo();
+  it("mutate throws for a page that no longer exists in storage", async () => {
+    const storage = new MemoryStorage();
+    const repo = makeRepo(storage);
     const page = await repo.create("proj1", "notes");
-    await repo.delete(page.id);
+    await storage.remove("pages", page.id);
     await expect(repo.mutate(page.id, (p) => p)).rejects.toThrow(/not found/i);
   });
 
-  it("deletes a page permanently", async () => {
+  it("softDelete sets the tombstone without removing the underlying record", async () => {
     const page = await repo.create("proj1", "notes");
-    await repo.delete(page.id);
-    expect(await repo.get(page.id)).toBeNull();
-    expect(await repo.list("proj1")).toHaveLength(0);
+    const deleted = await repo.softDelete(page.id);
+    expect(deleted.deletedAt).not.toBeNull();
+
+    // The record still exists in storage; get() finds it (only list filters it out).
+    const fetched = await repo.get(page.id);
+    expect(fetched).not.toBeNull();
+    expect(fetched?.deletedAt).toBe(deleted.deletedAt);
   });
 
-  it("delete throws for a missing page", async () => {
-    await expect(repo.delete("nope")).rejects.toThrow(/not found/i);
+  it("softDelete advances updatedAt", async () => {
+    const page = await repo.create("proj1", "notes");
+    const deleted = await repo.softDelete(page.id);
+    expect(deleted.updatedAt > page.updatedAt).toBe(true);
+  });
+
+  it("softDelete throws for a missing page", async () => {
+    await expect(repo.softDelete("nope")).rejects.toThrow(/not found/i);
+  });
+
+  it("list excludes soft-deleted pages", async () => {
+    const a = await repo.create("proj1", "notes", "A");
+    const b = await repo.create("proj1", "build-log", "B");
+    await repo.softDelete(a.id);
+    const listed = await repo.list("proj1");
+    expect(listed.map((p) => p.id)).toEqual([b.id]);
+  });
+
+  it("listAll excludes soft-deleted pages", async () => {
+    const a = await repo.create("proj1", "notes");
+    const b = await repo.create("proj2", "build-log");
+    await repo.softDelete(a.id);
+    const all = await repo.listAll();
+    expect(all.map((p) => p.id)).toEqual([b.id]);
   });
 });
 

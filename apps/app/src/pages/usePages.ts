@@ -74,7 +74,7 @@ export function usePages(
 
   const deletePage = useCallback(
     async (id: string) => {
-      await repo.delete(id);
+      await repo.softDelete(id);
       await refresh();
     },
     [repo, refresh],

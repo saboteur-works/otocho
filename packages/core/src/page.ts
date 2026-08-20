@@ -24,6 +24,8 @@ interface PageBase {
   order: number;
   createdAt: string;
   updatedAt: string;
+  /** Soft-delete marker; null when active. Mirrors Project.deletedAt (FR-16). */
+  deletedAt: string | null;
 }
 
 /** Free-form text. The lowest-friction page. */
@@ -120,6 +122,7 @@ function pageBase(
     order: input.order ?? 0,
     createdAt: ts,
     updatedAt: ts,
+    deletedAt: null,
   };
 }
 
@@ -155,6 +158,10 @@ export function createPage(
     case "presets":
       return createPresetPage(input, options);
   }
+}
+
+export function isDeleted(page: Page): boolean {
+  return page.deletedAt !== null;
 }
 
 /** Sibling order within a project; ties broken by creation order. The list order (FR-3). */

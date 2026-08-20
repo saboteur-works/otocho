@@ -47,7 +47,7 @@ describe("usePages", () => {
     expect(result.current.pages[0].title).toBe("New");
   });
 
-  it("deletes a page and removes it from the list", async () => {
+  it("soft-deletes a page, removing it from the list without removing the storage record", async () => {
     const repo = makeRepo();
     await repo.create("proj1", "notes");
     const { result } = renderHook(() => usePages("proj1", repo));
@@ -57,6 +57,9 @@ describe("usePages", () => {
     await act(async () => { await result.current.deletePage(pageId); });
 
     expect(result.current.pages).toHaveLength(0);
+    const stillStored = await repo.get(pageId);
+    expect(stillStored).not.toBeNull();
+    expect(stillStored?.deletedAt).not.toBeNull();
   });
 
   it("mutatePage persists changes and reflects them in the list", async () => {
