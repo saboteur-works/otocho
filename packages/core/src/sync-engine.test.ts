@@ -175,6 +175,104 @@ describe("SyncEngine", () => {
     });
   });
 
+  describe("pullCollection — Build log moves[] append-union merge (FR-8, Task 14)", () => {
+    function buildLogPage(
+      id: string,
+      updatedAt: string,
+      moves: { id: string; at: string; text: string }[],
+      sketch = "",
+    ) {
+      return {
+        id,
+        projectId: "proj-1",
+        type: "build-log" as const,
+        title: "Build log",
+        order: 0,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt,
+        deletedAt: null,
+        sketch,
+        moves,
+      };
+    }
+
+    it("merges disjoint move sets from both clients into the union", async () => {
+      const localMove = { id: "m-local", at: "2024-02-01T00:00:00.000Z", text: "local move" };
+      const remoteMove = { id: "m-remote", at: "2024-03-01T00:00:00.000Z", text: "remote move" };
+
+      // Establish a synced checkpoint via an initial pull, then diverge.
+      await remote.put(COLLECTION, buildLogPage("bl1", "2024-01-01T00:00:00.000Z", []));
+      await engine.pullCollection(COLLECTION);
+
+      await local.put(
+        COLLECTION,
+        buildLogPage("bl1", "2024-02-01T00:00:00.000Z", [localMove]),
+      );
+      await remote.put(
+        COLLECTION,
+        buildLogPage("bl1", "2024-03-01T00:00:00.000Z", [remoteMove]),
+      );
+
+      await engine.pullCollection(COLLECTION);
+
+      const localRecord = await local.get<ReturnType<typeof buildLogPage>>(COLLECTION, "bl1");
+      expect(localRecord?.moves.map((m) => m.id).sort()).toEqual(["m-local", "m-remote"]);
+    });
+
+    it("dedupes a move id present on both sides into exactly one entry", async () => {
+      const sharedMove = { id: "m-shared", at: "2024-01-15T00:00:00.000Z", text: "shared move" };
+      const localOnly = { id: "m-local", at: "2024-02-01T00:00:00.000Z", text: "local move" };
+      const remoteOnly = { id: "m-remote", at: "2024-03-01T00:00:00.000Z", text: "remote move" };
+
+      await remote.put(COLLECTION, buildLogPage("bl1", "2024-01-01T00:00:00.000Z", [sharedMove]));
+      await engine.pullCollection(COLLECTION);
+
+      await local.put(
+        COLLECTION,
+        buildLogPage("bl1", "2024-02-01T00:00:00.000Z", [sharedMove, localOnly]),
+      );
+      await remote.put(
+        COLLECTION,
+        buildLogPage("bl1", "2024-03-01T00:00:00.000Z", [sharedMove, remoteOnly]),
+      );
+
+      await engine.pullCollection(COLLECTION);
+
+      const localRecord = await local.get<ReturnType<typeof buildLogPage>>(COLLECTION, "bl1");
+      const ids = localRecord?.moves.map((m) => m.id) ?? [];
+      expect(ids.filter((id) => id === "m-shared")).toHaveLength(1);
+      expect(ids.sort()).toEqual(["m-local", "m-remote", "m-shared"]);
+    });
+
+    it("still reports an ordinary conflict for a same-page sketch difference when moves[] don't diverge", async () => {
+      const move = { id: "m1", at: "2024-01-15T00:00:00.000Z", text: "a move" };
+
+      await remote.put(
+        COLLECTION,
+        buildLogPage("bl1", "2024-01-01T00:00:00.000Z", [move], "original sketch"),
+      );
+      await engine.pullCollection(COLLECTION);
+
+      // Both sides edit only `sketch` after the checkpoint; moves[] is
+      // identical on both sides — not a moves-union case.
+      await local.put(
+        COLLECTION,
+        buildLogPage("bl1", "2024-02-01T00:00:00.000Z", [move], "local sketch"),
+      );
+      await remote.put(
+        COLLECTION,
+        buildLogPage("bl1", "2024-03-01T00:00:00.000Z", [move], "remote sketch"),
+      );
+
+      await engine.pullCollection(COLLECTION);
+
+      const localRecord = await local.get<ReturnType<typeof buildLogPage>>(COLLECTION, "bl1");
+      // Local's sketch is left untouched — not overwritten by remote, and
+      // not silently merged — matching Task 11's conflict-skip behavior.
+      expect(localRecord?.sketch).toBe("local sketch");
+    });
+  });
+
   describe("start/stop — debounced push", () => {
     beforeEach(() => {
       vi.useFakeTimers();

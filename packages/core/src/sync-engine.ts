@@ -1,6 +1,6 @@
 import type { StoragePort, StoredRecord } from "@otocho/storage";
 import { detectConflict } from "./sync-conflict";
-import type { Page } from "./page";
+import type { BuildLogPage, Move, Page } from "./page";
 
 /** The collection name pulled/pushed through the pages-specific conflict
  * checkpoint/detection path (FR-9, Task 11). Other collections (e.g.
@@ -47,10 +47,16 @@ export interface SyncEngineDeps {
  * a same-page conflict (both local and remote edited since the last synced
  * checkpoint for that page — FR-9, Task 11) and leaves the page untouched
  * rather than overwriting local with remote; a later task (12) hands that
- * off to a preserve-both resolution path instead of the current no-op. Other
- * collections (e.g. `projects`), and the Build log move-feed append-union
- * merge (Task 14), still apply newer-wins by `updatedAt` with no conflict
- * detection.
+ * off to a preserve-both resolution path instead of the current no-op. A
+ * Build log page's `moves[]` feed is carved out of that whole-page check
+ * (FR-8, Task 14): if local and remote each appended moves the other
+ * lacks, `pullCollection` merges the union of both `moves[]` — deduplicated
+ * by move id — into local instead, ahead of the conflict check, so a
+ * diverging move feed never gets treated as (or blocked by) a same-page
+ * conflict. A Build log page whose `moves[]` don't diverge still goes
+ * through the ordinary conflict/newer-wins path above for its other fields
+ * (e.g. `sketch`). Other collections (e.g. `projects`) still apply
+ * newer-wins by `updatedAt` with no conflict detection.
  */
 export class SyncEngine {
   private readonly local: StoragePort;
@@ -133,12 +139,20 @@ export class SyncEngine {
   /**
    * Writes remote records that are missing from, or newer than, their local
    * counterpart, directly into local (newer-wins) — except for the
-   * `"pages"` collection, where a page with a known synced checkpoint is
-   * first checked via `detectConflict` (FR-9, Task 11): if both local and
-   * remote changed since that checkpoint, the page is left untouched rather
-   * than overwritten, and its checkpoint does not advance. A page with no
-   * recorded checkpoint yet (never synced through this engine) falls back
-   * to plain newer-wins, matching pre-Task-11 behavior.
+   * `"pages"` collection, which gets two page-specific detours ahead of
+   * plain newer-wins:
+   *
+   * 1. Build log `moves[]` append-union (FR-8, Task 14): if the local and
+   *    remote copies of the same Build log page each have moves the other
+   *    lacks, the merged union of both `moves[]` (deduplicated by move id)
+   *    is written to local and its checkpoint advances — before, and
+   *    instead of, the conflict check below.
+   * 2. Otherwise, a page with a known synced checkpoint is checked via
+   *    `detectConflict` (FR-9, Task 11): if both local and remote changed
+   *    since that checkpoint, the page is left untouched rather than
+   *    overwritten, and its checkpoint does not advance. A page with no
+   *    recorded checkpoint yet (never synced through this engine) falls
+   *    back to plain newer-wins, matching pre-Task-11 behavior.
    */
   async pullCollection(collection: string): Promise<void> {
     const [localRecords, remoteRecords] = await Promise.all([
@@ -151,6 +165,23 @@ export class SyncEngine {
       const local = localById.get(record.id);
 
       if (collection === PAGES_COLLECTION && local) {
+        const merged = mergeBuildLogMoves(
+          local as unknown as Page,
+          record as unknown as Page,
+          this.now,
+        );
+        if (merged) {
+          // Build log moves[] append-union (FR-8, Task 14): both sides
+          // appended distinct moves since the shared ancestor. This is a
+          // narrower, moves-only merge that takes priority over the
+          // whole-page conflict block below — a diverging `moves[]` is
+          // never itself a reason to leave the page as a pending conflict.
+          const mergedRecord = merged as unknown as SyncableRecord;
+          await this.local.put(collection, mergedRecord);
+          this.recordSynced(collection, record.id, mergedRecord.updatedAt);
+          continue;
+        }
+
         const checkpoint = this.syncCheckpoints.get(this.checkpointKey(collection, record.id));
         if (
           checkpoint !== undefined &&
@@ -321,4 +352,46 @@ function isNewer(candidate: SyncableRecord, existing: SyncableRecord): boolean {
   if (candidate.updatedAt === undefined) return true;
   if (existing.updatedAt === undefined) return true;
   return candidate.updatedAt > existing.updatedAt;
+}
+
+/**
+ * Build log `moves[]` append-union merge (FR-8, Task 14). When `local` and
+ * `remote` are both the same Build log page and EACH has at least one move
+ * the other lacks (a true fork — both clients appended independently since
+ * the last shared state), returns a merged page carrying the union of both
+ * `moves[]` arrays, deduplicated by move `id` and ordered by each move's own
+ * `at` timestamp. All other fields (notably `sketch`) are taken from
+ * `local` unchanged — local stays primary (D-4) for anything outside the
+ * move feed — and `updatedAt` is stamped fresh via `now` so the merge
+ * itself counts as a new synced state.
+ *
+ * Returns `undefined` — deferring to the caller's ordinary newer-wins /
+ * Task 11 conflict path — when the pages aren't both Build log pages, or
+ * when `moves[]` doesn't truly diverge (identical arrays, or one side is a
+ * superset of the other because only one client appended since the last
+ * sync). In particular, a Build log page whose `moves[]` are unchanged but
+ * whose `sketch` differs on both sides is deliberately left to that
+ * ordinary path — this merge is scoped to `moves[]` only.
+ */
+function mergeBuildLogMoves(
+  local: Page,
+  remote: Page,
+  now: () => string,
+): BuildLogPage | undefined {
+  if (local.type !== "build-log" || remote.type !== "build-log") return undefined;
+
+  const localIds = new Set(local.moves.map((m) => m.id));
+  const remoteIds = new Set(remote.moves.map((m) => m.id));
+  const localHasExtra = local.moves.some((m) => !remoteIds.has(m.id));
+  const remoteHasExtra = remote.moves.some((m) => !localIds.has(m.id));
+  if (!localHasExtra || !remoteHasExtra) return undefined;
+
+  const byId = new Map<string, Move>();
+  for (const move of local.moves) byId.set(move.id, move);
+  for (const move of remote.moves) {
+    if (!byId.has(move.id)) byId.set(move.id, move);
+  }
+  const moves = [...byId.values()].sort((a, b) => a.at.localeCompare(b.at));
+
+  return { ...local, moves, updatedAt: now() };
 }
