@@ -1,4 +1,11 @@
 import type { StoragePort, StoredRecord } from "@otocho/storage";
+import { detectConflict } from "./sync-conflict";
+import type { Page } from "./page";
+
+/** The collection name pulled/pushed through the pages-specific conflict
+ * checkpoint/detection path (FR-9, Task 11). Other collections (e.g.
+ * `projects`) keep the plain newer-wins comparison. */
+const PAGES_COLLECTION = "pages";
 
 /** Debounce window between the last local write and a coalesced push (D-5). */
 const DEFAULT_DEBOUNCE_MS = 3000;
@@ -36,9 +43,14 @@ export interface SyncEngineDeps {
  * primary (D-4) — this is the only thing that talks to the remote port; UI
  * code never does.
  *
- * Conflict handling (same page changed on both sides) and the Build log
- * move-feed append-union merge are out of scope here — `pullCollection`
- * assumes non-conflicting updates and applies newer-wins by `updatedAt`.
+ * Conflict handling: for the `"pages"` collection, `pullCollection` detects
+ * a same-page conflict (both local and remote edited since the last synced
+ * checkpoint for that page — FR-9, Task 11) and leaves the page untouched
+ * rather than overwriting local with remote; a later task (12) hands that
+ * off to a preserve-both resolution path instead of the current no-op. Other
+ * collections (e.g. `projects`), and the Build log move-feed append-union
+ * merge (Task 14), still apply newer-wins by `updatedAt` with no conflict
+ * detection.
  */
 export class SyncEngine {
   private readonly local: StoragePort;
@@ -62,6 +74,17 @@ export class SyncEngine {
   private retryAttempt = 0;
   private failedPushCollections = new Set<string>();
   private failedPullCollections = new Set<string>();
+
+  /** Per-page "last synced" checkpoint (FR-9, Task 11), keyed by
+   * `${collection}/${id}`. Recorded whenever a `"pages"` record
+   * successfully syncs — pushed to remote, or pulled to local — with no
+   * conflict detected, so a page that was synced and then edited again
+   * locally (or remotely) is compared against its own last-synced state
+   * rather than against a stale baseline or `updatedAt` alone. Undefined
+   * for a page id means "no known synced baseline yet" — pre-checkpoint
+   * pulls fall back to plain newer-wins, matching this engine's behavior
+   * before Task 11. */
+  private syncCheckpoints = new Map<string, string>();
 
   constructor(deps: SyncEngineDeps) {
     this.local = deps.local;
@@ -100,14 +123,22 @@ export class SyncEngine {
       const remote = remoteById.get(record.id);
       if (!remote || isNewer(record, remote)) {
         await this.remote.put(collection, record);
+        if (collection === PAGES_COLLECTION) {
+          this.recordSynced(collection, record.id, record.updatedAt);
+        }
       }
     }
   }
 
   /**
    * Writes remote records that are missing from, or newer than, their local
-   * counterpart, directly into local (newer-wins, no conflict detection —
-   * see class doc).
+   * counterpart, directly into local (newer-wins) — except for the
+   * `"pages"` collection, where a page with a known synced checkpoint is
+   * first checked via `detectConflict` (FR-9, Task 11): if both local and
+   * remote changed since that checkpoint, the page is left untouched rather
+   * than overwritten, and its checkpoint does not advance. A page with no
+   * recorded checkpoint yet (never synced through this engine) falls back
+   * to plain newer-wins, matching pre-Task-11 behavior.
    */
   async pullCollection(collection: string): Promise<void> {
     const [localRecords, remoteRecords] = await Promise.all([
@@ -118,10 +149,39 @@ export class SyncEngine {
 
     for (const record of remoteRecords) {
       const local = localById.get(record.id);
+
+      if (collection === PAGES_COLLECTION && local) {
+        const checkpoint = this.syncCheckpoints.get(this.checkpointKey(collection, record.id));
+        if (
+          checkpoint !== undefined &&
+          detectConflict(local as unknown as Page, record as unknown as Page, checkpoint)
+        ) {
+          // Same-page conflict (FR-9): both sides changed since the last
+          // synced checkpoint. Stop here rather than overwriting local with
+          // remote — Task 12 hands this to a preserve-both resolution path
+          // instead of this no-op.
+          continue;
+        }
+      }
+
       if (!local || isNewer(record, local)) {
         await this.local.put(collection, record);
+        if (collection === PAGES_COLLECTION) {
+          this.recordSynced(collection, record.id, record.updatedAt);
+        }
       }
     }
+  }
+
+  /** Checkpoint map key for a given collection/record id pair. */
+  private checkpointKey(collection: string, id: string): string {
+    return `${collection}/${id}`;
+  }
+
+  /** Records that `id` in `collection` is now known synced as of
+   * `updatedAt` — see the `syncCheckpoints` field doc. */
+  private recordSynced(collection: string, id: string, updatedAt: string): void {
+    this.syncCheckpoints.set(this.checkpointKey(collection, id), updatedAt);
   }
 
   /**

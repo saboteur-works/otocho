@@ -111,6 +111,70 @@ describe("SyncEngine", () => {
     });
   });
 
+  describe("pullCollection — conflict detection (FR-9, Task 11)", () => {
+    it("does not report a conflict, and does nothing, when only local changed since last sync", async () => {
+      // Establish a synced checkpoint for p1 via an initial pull.
+      await remote.put(COLLECTION, record("p1", "2024-01-01T00:00:00.000Z"));
+      await engine.pullCollection(COLLECTION);
+
+      // Only local changes after that.
+      await local.put(COLLECTION, record("p1", "2024-02-01T00:00:00.000Z"));
+
+      await engine.pullCollection(COLLECTION);
+
+      const localRecord = await local.get(COLLECTION, "p1");
+      expect(localRecord).toEqual(record("p1", "2024-02-01T00:00:00.000Z"));
+      const remoteRecord = await remote.get(COLLECTION, "p1");
+      expect(remoteRecord).toEqual(record("p1", "2024-01-01T00:00:00.000Z"));
+    });
+
+    it("does not report a conflict, and applies remote normally, when only remote changed since last sync", async () => {
+      await remote.put(COLLECTION, record("p1", "2024-01-01T00:00:00.000Z"));
+      await engine.pullCollection(COLLECTION);
+
+      // Only remote changes after that.
+      await remote.put(COLLECTION, record("p1", "2024-03-01T00:00:00.000Z"));
+
+      await engine.pullCollection(COLLECTION);
+
+      const localRecord = await local.get(COLLECTION, "p1");
+      expect(localRecord).toEqual(record("p1", "2024-03-01T00:00:00.000Z"));
+    });
+
+    it("reports a conflict and leaves both sides untouched when both changed since last sync", async () => {
+      await remote.put(COLLECTION, record("p1", "2024-01-01T00:00:00.000Z"));
+      await engine.pullCollection(COLLECTION);
+
+      // Both sides change independently after that.
+      await local.put(COLLECTION, record("p1", "2024-02-01T00:00:00.000Z"));
+      await remote.put(COLLECTION, record("p1", "2024-03-01T00:00:00.000Z"));
+
+      await engine.pullCollection(COLLECTION);
+
+      const localRecord = await local.get(COLLECTION, "p1");
+      expect(localRecord).toEqual(record("p1", "2024-02-01T00:00:00.000Z"));
+      const remoteRecord = await remote.get(COLLECTION, "p1");
+      expect(remoteRecord).toEqual(record("p1", "2024-03-01T00:00:00.000Z"));
+
+      // The checkpoint did not advance for the conflicting page: a repeat
+      // pull with no further changes still reports the same conflict and
+      // still leaves local untouched, rather than resolving itself.
+      await engine.pullCollection(COLLECTION);
+      const localRecordAgain = await local.get(COLLECTION, "p1");
+      expect(localRecordAgain).toEqual(record("p1", "2024-02-01T00:00:00.000Z"));
+    });
+
+    it("does not conflict on a page with no prior checkpoint, matching pre-Task-11 newer-wins behavior", async () => {
+      await local.put(COLLECTION, record("p1", "2024-01-01T00:00:00.000Z"));
+      await remote.put(COLLECTION, record("p1", "2024-06-01T00:00:00.000Z"));
+
+      await engine.pullCollection(COLLECTION);
+
+      const localRecord = await local.get(COLLECTION, "p1");
+      expect(localRecord).toEqual(record("p1", "2024-06-01T00:00:00.000Z"));
+    });
+  });
+
   describe("start/stop — debounced push", () => {
     beforeEach(() => {
       vi.useFakeTimers();
