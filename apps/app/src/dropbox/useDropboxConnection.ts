@@ -1,7 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
-import { createDropboxConnection, type DropboxConnection, DropboxConnectionRepository } from "@otocho/core";
-import type { DropboxAuthPort, DropboxTokens } from "@otocho/storage";
+import {
+  createDropboxConnection,
+  type DropboxConnection,
+  DropboxConnectionRepository,
+  SyncEngine,
+  type SyncEngineDeps,
+} from "@otocho/core";
+import { DropboxStorageAdapter, type DropboxAuthPort, type DropboxTokens, type StoragePort } from "@otocho/storage";
+import { WebStorageAdapter } from "@otocho/storage/web";
 import { dropboxAuth, dropboxConnectionRepo } from "./repository";
+
+/** Collections migrated into Dropbox on first connection (FR-4, FR-5). */
+const MIGRATED_COLLECTIONS = ["projects", "pages"];
+
+/** The app's shared, IndexedDB-backed local storage port, used as the
+ * migration push's local side (default; tests inject `MemoryStorage`). */
+const defaultLocalStorage = new WebStorageAdapter();
 
 const ACCOUNT_URL = "https://api.dropboxapi.com/2/users/get_current_account";
 
@@ -42,6 +56,12 @@ export interface UseDropboxConnectionOptions {
   auth?: DropboxAuthPort;
   /** Injectable so tests can stub the Dropbox account-lookup HTTP call. */
   resolveAccountId?: (tokens: DropboxTokens) => Promise<string>;
+  /** The local `StoragePort` migrated projects/pages are read from. Defaults
+   * to the app's shared `WebStorageAdapter`; tests inject `MemoryStorage`. */
+  localStorage?: StoragePort;
+  /** Injectable so tests can stub the `SyncEngine` construction and observe
+   * (or fail) `pushCollection` without a real Dropbox connection. */
+  createSyncEngine?: (deps: SyncEngineDeps) => SyncEngine;
 }
 
 export interface UseDropboxConnection {
@@ -70,6 +90,8 @@ export function useDropboxConnection(options: UseDropboxConnectionOptions = {}):
     repo = dropboxConnectionRepo,
     auth = dropboxAuth,
     resolveAccountId = fetchDropboxAccountId,
+    localStorage = defaultLocalStorage,
+    createSyncEngine = (deps: SyncEngineDeps) => new SyncEngine(deps),
   } = options;
 
   const [connection, setConnection] = useState<DropboxConnection | null>(null);
@@ -100,12 +122,29 @@ export function useDropboxConnection(options: UseDropboxConnectionOptions = {}):
       const accountId = await resolveAccountId(tokens);
       const saved = await repo.save(createDropboxConnection(accountId, tokens));
       setConnection(saved);
+
+      // Migrate existing local projects/pages into Dropbox via the ordinary
+      // sync path (FR-4, FR-5, D-3): no bespoke migration function, progress
+      // UI, or rollback — a push that's interrupted partway just leaves the
+      // unsent records "not yet synced", to be picked up by the same
+      // retry/interval mechanism as any other sync gap.
+      const remote = new DropboxStorageAdapter({
+        getAccessToken: () => saved.tokens.accessToken,
+      });
+      // `pushCollection` doesn't require the engine to be `start()`ed (that
+      // only gates the debounce/pull loop, out of scope here — a later task
+      // wires an app-lifetime engine for ongoing sync); constructing it is
+      // enough to drive this one-off migration push.
+      const engine = createSyncEngine({ local: localStorage, remote });
+      await Promise.allSettled(
+        MIGRATED_COLLECTIONS.map((collection) => engine.pushCollection(collection)),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect to Dropbox.");
     } finally {
       setConnecting(false);
     }
-  }, [auth, repo, resolveAccountId]);
+  }, [auth, createSyncEngine, localStorage, repo, resolveAccountId]);
 
   const disconnect = useCallback(async () => {
     await repo.clear();
