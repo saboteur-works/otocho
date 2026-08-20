@@ -22,6 +22,45 @@ export interface SyncableRecord extends StoredRecord {
   updatedAt: string;
 }
 
+/**
+ * A cause `SyncEngine` itself can distinguish from a failed push/pull error
+ * (Task 9, FR-12/FR-13, D-6's expandable "why" detail): an auth failure, or a
+ * Dropbox "out of space" error, both surfaced from the remote `StoragePort`
+ * (e.g. `DropboxStorageAdapter`)'s thrown errors. `"disconnected"` is
+ * deliberately not a member here — a disconnected client has no
+ * `SyncEngine`/remote at all, so that cause is known one layer up, by
+ * whether a `DropboxConnection` marker exists, not from this engine.
+ */
+export type SyncStatusCause = "auth-failure" | "out-of-space";
+
+/** {@link SyncEngine.getStatus}'s return shape (Task 9, FR-13, D-6). */
+export interface SyncStatus {
+  /** True when no push/pull collection is currently in a failed/retrying
+   * state. */
+  synced: boolean;
+  /** The most recently classified failure cause, when `synced` is false and
+   * the failing error was recognizable (D-6). Undefined either while
+   * `synced` is true, or when `synced` is false but the failure couldn't be
+   * classified — the "why" detail simply has nothing more specific to show. */
+  cause?: SyncStatusCause;
+}
+
+/**
+ * Classifies a push/pull failure thrown by the remote `StoragePort` into a
+ * {@link SyncStatusCause}, by pattern-matching the error message emitted by
+ * `DropboxStorageAdapter` (Task 6) — Dropbox's `insufficient_space` error tag
+ * for out-of-space, or an HTTP 401 / Dropbox's expired-or-invalid access
+ * token errors for an auth failure. Returns `undefined` for any other error
+ * (e.g. a plain network failure), so the status surface reports "unsynced,
+ * no further detail" rather than guessing.
+ */
+function classifySyncError(error: unknown): SyncStatusCause | undefined {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/insufficient_space/i.test(message)) return "out-of-space";
+  if (/expired_access_token|invalid_access_token|\(401\)/i.test(message)) return "auth-failure";
+  return undefined;
+}
+
 export interface SyncEngineDeps {
   local: StoragePort;
   remote: StoragePort;
@@ -81,6 +120,11 @@ export class SyncEngine {
   private failedPushCollections = new Set<string>();
   private failedPullCollections = new Set<string>();
 
+  /** The most recently classified push/pull failure cause (Task 9), or
+   * `undefined` if nothing is currently failing, or the latest failure
+   * wasn't classifiable. Backs {@link getStatus}. */
+  private lastFailureCause: SyncStatusCause | undefined;
+
   /** Per-page "last synced" checkpoint (FR-9, Task 11), keyed by
    * `${collection}/${id}`. Recorded whenever a `"pages"` record
    * successfully syncs — pushed to remote, or pulled to local — with no
@@ -111,6 +155,17 @@ export class SyncEngine {
    * task) can schedule off the same clock tests inject here. */
   currentTime(): string {
     return this.now();
+  }
+
+  /**
+   * Reports whether every push/pull collection is currently in sync, and if
+   * not, the most specific known cause (Task 9, FR-12/FR-13, D-6). Callers
+   * (e.g. a UI status hook) poll this rather than this engine pushing
+   * updates itself — `SyncEngine` has no event/subscription surface.
+   */
+  getStatus(): SyncStatus {
+    const synced = this.failedPushCollections.size === 0 && this.failedPullCollections.size === 0;
+    return synced ? { synced: true } : { synced: false, cause: this.lastFailureCause };
   }
 
   /**
@@ -292,8 +347,9 @@ export class SyncEngine {
       await this.pushCollection(collection);
       this.failedPushCollections.delete(collection);
       this.onRetrySucceeded();
-    } catch {
+    } catch (error) {
       this.failedPushCollections.add(collection);
+      this.lastFailureCause = classifySyncError(error);
       this.scheduleRetry();
     }
   }
@@ -304,8 +360,9 @@ export class SyncEngine {
       await this.pullCollection(collection);
       this.failedPullCollections.delete(collection);
       this.onRetrySucceeded();
-    } catch {
+    } catch (error) {
       this.failedPullCollections.add(collection);
+      this.lastFailureCause = classifySyncError(error);
       this.scheduleRetry();
     }
   }
@@ -325,6 +382,7 @@ export class SyncEngine {
   private onRetrySucceeded(): void {
     if (this.failedPushCollections.size > 0 || this.failedPullCollections.size > 0) return;
     this.retryAttempt = 0;
+    this.lastFailureCause = undefined;
     if (this.retryTimer !== undefined) {
       clearTimeout(this.retryTimer);
       this.retryTimer = undefined;

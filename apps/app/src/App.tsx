@@ -1,5 +1,6 @@
 import { HashRouter, Link, Route, Routes } from "react-router-dom";
 import { ConnectDropbox } from "./dropbox/ConnectDropbox";
+import { SyncStatusBanner } from "./dropbox/SyncStatusBanner";
 import { ProjectsHome } from "./projects/ProjectsHome";
 import { ProjectView } from "./projects/ProjectView";
 import { TrashView } from "./projects/TrashView";
@@ -25,6 +26,8 @@ export function App() {
             </h1>
           </Link>
         </header>
+
+        <SyncStatusBanner />
 
         <main className="flex-1">
           <Routes>
