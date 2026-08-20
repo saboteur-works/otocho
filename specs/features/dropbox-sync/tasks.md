@@ -113,7 +113,7 @@ requirement is that the tombstone exists so FR-9/FR-10/FR-11 can represent a
 delete-vs-edit conflict (Task 13). Restore/permanent-purge UI for pages is out
 of scope here (the spec only extends this to conflict handling, not a page
 Trash view).
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 2: `DropboxAuthPort` seam + PKCE helpers
 
@@ -134,7 +134,7 @@ and unit-tested against the PKCE spec's expected transform (S256); no network
 call is made from this task — it defines the seam and shared math only.
 **Depends on:** none
 **Estimate:** 3
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 3: Web platform OAuth redirect + connect flow
 
@@ -153,7 +153,7 @@ parameter construction and the token-exchange request shape against a mocked
 `fetch`, not a live Dropbox call.
 **Depends on:** 2
 **Estimate:** 3
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 4: Dropbox connection state entity + repository
 
@@ -178,7 +178,7 @@ it.
 **Notes:** Token storage here is plain-text in the local `StoragePort`
 record, consistent with "no encryption layer beyond what Dropbox itself
 provides" (spec Non-goals) — do not add bespoke encryption in this task.
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 5: Connect / disconnect UI
 
@@ -200,7 +200,7 @@ unaffected (FR-1, FR-15); disconnecting does not delete or alter any local
 project/page data (D-4).
 **Depends on:** 3, 4
 **Estimate:** 3
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 6: `DropboxStorageAdapter` — file-per-record CRUD
 
@@ -226,7 +226,7 @@ engine talks to it. Auth/refresh-token handling on expiry can reuse Task 2's
 token-exchange shape but a full refresh-token rotation flow is an
 implementation detail left to whoever picks this up; the done condition here
 is CRUD correctness, not token lifecycle.
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 7: Sync engine — debounced push + periodic pull
 
@@ -251,7 +251,7 @@ the move-feed merge (Task 14) are explicitly out of scope for this task —
 `pullCollection` here assumes non-conflicting updates only.
 **Depends on:** 6
 **Estimate:** 5
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 8: Retry policy — exponential backoff + manual retry
 
@@ -272,7 +272,7 @@ maximum delay, and `retryNow` succeeding once the underlying failure
 condition (mocked) clears.
 **Depends on:** 7
 **Estimate:** 3
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 9: Local-only degradation + two-tier warning banner
 
@@ -294,7 +294,7 @@ test that forces a sync failure and confirms local reads/writes still
 succeed.
 **Depends on:** 7, 8
 **Estimate:** 3
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 10: Migration on connect
 
@@ -315,7 +315,7 @@ point (FR-5) — verified by a test that fails a simulated mid-migration push
 and confirms all local records are still present afterward.
 **Depends on:** 5, 7
 **Estimate:** 2
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 11: Conflict detection for concurrent same-page edits
 
@@ -343,7 +343,7 @@ timestamp/checkpoint (not just compare `updatedAt` directly) so a page that
 was pulled and then locally edited again isn't mistaken for a conflict —
 worth introducing a small internal sync-checkpoint map as part of this task
 rather than inferring it from `updatedAt` alone.
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 12: Preserve both versions on conflict
 
@@ -364,7 +364,7 @@ content are still recoverable (one from `PageRepository.get`, one from the
 conflict record) and neither has been silently dropped.
 **Depends on:** 11
 **Estimate:** 3
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 13: Delete-vs-edit conflict via the `deletedAt` tombstone
 
@@ -385,7 +385,7 @@ one side plus an edit on the other produces a conflict record with both the
 tombstoned and the edited version preserved.
 **Depends on:** 1, 11, 12
 **Estimate:** 2
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 14: Build log move feed append-union merge
 
@@ -407,7 +407,7 @@ concurrent `sketch` edit on the same page still triggering a Task 11
 conflict.
 **Depends on:** 7
 **Estimate:** 3
-**Done:** [ ]
+**Done:** [x]
 
 ### Task 15: Conflict resolution UI
 
@@ -430,7 +430,7 @@ UI, and asserts the resulting page state matches the chosen version and the
 conflict record is gone.
 **Depends on:** 12, 13
 **Estimate:** 5
-**Done:** [ ]
+**Done:** [x]
 
 ## Summary
 
