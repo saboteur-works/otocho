@@ -11,6 +11,7 @@ import {
   createPresetParam,
   createPresetPage,
   editMove,
+  isDeleted,
   PAGE_TYPES,
   removeDevice,
   removeMove,
@@ -48,9 +49,16 @@ describe("page factories", () => {
       order: 2,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
+      deletedAt: null,
       body: "",
     });
     expect(page.createdAt).toBe(page.updatedAt);
+  });
+
+  it("sets deletedAt to null on creation", () => {
+    expect(createNotesPage({ projectId: "p" }).deletedAt).toBeNull();
+    expect(createBuildLogPage({ projectId: "p" }).deletedAt).toBeNull();
+    expect(createPresetPage({ projectId: "p" }).deletedAt).toBeNull();
   });
 
   it("creates a Build log with an empty sketch and no moves", () => {
@@ -84,6 +92,14 @@ describe("page factories", () => {
     for (const type of PAGE_TYPES) {
       expect(createPage(type, { projectId: "p" }).type).toBe(type);
     }
+  });
+});
+
+describe("isDeleted", () => {
+  it("is false for an active page and true once deletedAt is set", () => {
+    const page = createNotesPage({ projectId: "p" });
+    expect(isDeleted(page)).toBe(false);
+    expect(isDeleted({ ...page, deletedAt: "2026-01-01T00:00:00.000Z" })).toBe(true);
   });
 });
 

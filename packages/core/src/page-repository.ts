@@ -2,6 +2,7 @@ import type { StoragePort } from "@otocho/storage";
 import {
   byOrder,
   createPage,
+  isDeleted,
   newId,
   type CreatePageOptions,
   type Page,
@@ -51,19 +52,20 @@ export class PageRepository {
     return this.storage.get<Page>(COLLECTION, id);
   }
 
-  /** Pages belonging to a project, sorted by `order` then creation time (FR-3). */
+  /** Active pages belonging to a project, sorted by `order` then creation time (FR-3). */
   async list(projectId: string): Promise<Page[]> {
     const all = await this.storage.list<Page>(COLLECTION);
-    return all.filter((p) => p.projectId === projectId).sort(byOrder);
+    return all.filter((p) => p.projectId === projectId && !isDeleted(p)).sort(byOrder);
   }
 
   /**
-   * Every persisted page, across every project (FR-9). `order` is
+   * Every active persisted page, across every project (FR-9). `order` is
    * project-scoped and not meaningful across projects, so pages here are
    * returned unsorted — callers apply their own order.
    */
   async listAll(): Promise<Page[]> {
-    return this.storage.list<Page>(COLLECTION);
+    const all = await this.storage.list<Page>(COLLECTION);
+    return all.filter((p) => !isDeleted(p));
   }
 
   async rename(id: string, title: string): Promise<Page> {
@@ -142,9 +144,15 @@ export class PageRepository {
     return this.save({ ...transform(current), updatedAt: this.now() });
   }
 
-  async delete(id: string): Promise<void> {
-    await this.require(id);
-    await this.storage.remove(COLLECTION, id);
+  /**
+   * Mark a page as deleted without removing its stored record (FR-16), so a
+   * page edited on one client while deleted on another can later be
+   * represented as a conflict (D-2) instead of resolved by delete-wins.
+   * Routes through the serialized merge write, like every other content
+   * write to a page (see {@link mutate}).
+   */
+  async softDelete(id: string): Promise<Page> {
+    return this.mutate(id, (page) => ({ ...page, deletedAt: this.now() }));
   }
 
   private async require(id: string): Promise<Page> {
