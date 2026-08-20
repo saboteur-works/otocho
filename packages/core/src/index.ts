@@ -17,3 +17,5 @@ export * from "./onboarding";
 export * from "./onboarding-repository";
 export * from "./onboarding-seed-content";
 export * from "./onboarding-seed";
+export * from "./dropbox-connection";
+export * from "./dropbox-connection-repository";
