@@ -8,7 +8,7 @@ The MVP is deliberately **DAW-agnostic and manual-entry**: it never reads or par
 
 The product thesis and full MVP scope live in [`docs/concept.md`](docs/concept.md) and [`docs/spec.md`](docs/spec.md); per-feature specs, designs, and task lists live under [`docs/features/`](docs/features/). Functional requirements are referenced throughout the code as `FR-N`, pointing at `docs/spec.md`.
 
-> **Status:** MVP in progress. The web app runs; the Notes, Build log, and Presets page editors are built, search across all projects and pages is live, and first launch seeds a prefilled, searchable example project. The Electron and Capacitor shells are stubs.
+> **Status:** MVP in progress. The web app runs; the Notes, Build log, and Presets page editors are built, search across all projects and pages is live, first launch seeds a prefilled, searchable example project, and Dropbox BYOS sync (connect/disconnect, background push/pull, and conflict surfacing) is implemented on the `feat/dropbox-sync` branch, not yet merged. The Electron and Capacitor shells are stubs.
 
 ## Getting started
 
@@ -54,10 +54,10 @@ packages/
   storage/    @otocho/storage  — the persistence seam (StoragePort + adapters)
 ```
 
-- **`packages/storage`** — the persistence seam. Defines `StoragePort` (`list/get/put/remove` over collections of `{ id }` records) and one adapter per platform. Only the web adapter (IndexedDB-backed) exists today. The model is **one record per page**, so future sync conflicts stay page-scoped (FR-12).
-- **`packages/core`** — the platform-agnostic domain. Pure data + functions (factories, invariants, sort comparators, pure transforms — no I/O) plus repositories (`*-repository.ts`) that do all reads/writes through the injected `StoragePort`. `Page` is a discriminated union over `type` (`notes | build-log | presets`). Projects use **soft-delete** (Trash → permanent removal).
+- **`packages/storage`** — the persistence seam. Defines `StoragePort` (`list/get/put/remove` over collections of `{ id }` records) and one adapter per platform: the web adapter (IndexedDB-backed) and `DropboxStorageAdapter` (file-per-record over Dropbox's HTTP file API), plus a `DropboxAuthPort` OAuth PKCE connect seam. Desktop/mobile local adapters are still planned. The model is **one record per page**, so sync conflicts stay page-scoped (FR-12).
+- **`packages/core`** — the platform-agnostic domain. Pure data + functions (factories, invariants, sort comparators, pure transforms — no I/O) plus repositories (`*-repository.ts`) that do all reads/writes through the injected `StoragePort`. `Page` is a discriminated union over `type` (`notes | build-log | presets`); both Projects and Pages use **soft-delete** (`deletedAt` marker → Trash → permanent removal), not hard delete. Dropbox sync adds a connection-marker entity (`dropbox-connection.ts` + repository), a pending-conflicts repository (`page-conflict-repository.ts`), a pure conflict detector (`sync-conflict.ts`), and the sync orchestration itself (`sync-engine.ts`'s `SyncEngine`: debounced push, periodic pull, backoff retry, append-union move-feed merge, and same-page conflict detection).
 - **`packages/ui`** — the design system: shadcn/ui components on Tailwind v4, themed with saboteur-styles brand tokens.
-- **`apps/app`** — the React UI, organized by feature folder (`projects/`, `pages/`, `search/`, `onboarding/`), each with components, a hook wrapping a repository, and a `repository.ts` exporting a singleton repo wired to `WebStorageAdapter`. Search is a header-mounted overlay reachable from any route, matching across all projects and pages. On first launch, `onboarding/` seeds a prefilled example project (one page of each type) before the project list first renders.
+- **`apps/app`** — the React UI, organized by feature folder (`projects/`, `pages/`, `search/`, `onboarding/`, `dropbox/`), each with components, a hook wrapping a repository, and a `repository.ts` exporting a singleton repo wired to `WebStorageAdapter`. Search is a header-mounted overlay reachable from any route, matching across all projects and pages. On first launch, `onboarding/` seeds a prefilled example project (one page of each type) before the project list first renders. `dropbox/` covers Dropbox connect/disconnect (with a local-to-Dropbox data migration on first connect), a "not synced" status banner, and an in-app conflict-resolution screen at `/conflicts`.
 
 For deeper guidance on where to add things and the invariants to preserve, see [`CLAUDE.md`](CLAUDE.md).
 
