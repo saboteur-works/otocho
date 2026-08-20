@@ -1,6 +1,7 @@
 import type { StoragePort, StoredRecord } from "@otocho/storage";
 import { detectConflict } from "./sync-conflict";
 import type { BuildLogPage, Move, Page } from "./page";
+import { PageConflictRepository } from "./page-conflict-repository";
 
 /** The collection name pulled/pushed through the pages-specific conflict
  * checkpoint/detection path (FR-9, Task 11). Other collections (e.g.
@@ -73,6 +74,11 @@ export interface SyncEngineDeps {
   retryBaseMs?: number;
   /** Ceiling on the exponential backoff delay, in ms. */
   retryMaxMs?: number;
+  /** Where detected same-page conflicts (Task 12, FR-10) are recorded so a
+   * later resolution step (Task 15) can offer the user a choice. Defaults to
+   * a `PageConflictRepository` over `local` — conflicts are a local-device
+   * concern, not something pushed to remote. */
+  pageConflictRepository?: PageConflictRepository;
 }
 
 /**
@@ -85,9 +91,11 @@ export interface SyncEngineDeps {
  * Conflict handling: for the `"pages"` collection, `pullCollection` detects
  * a same-page conflict (both local and remote edited since the last synced
  * checkpoint for that page — FR-9, Task 11) and leaves the page untouched
- * rather than overwriting local with remote; a later task (12) hands that
- * off to a preserve-both resolution path instead of the current no-op. A
- * Build log page's `moves[]` feed is carved out of that whole-page check
+ * rather than overwriting local with remote, instead recording both
+ * versions via a `PageConflictRepository` (FR-10, Task 12) so a later
+ * resolution step (Task 15) can offer the user a choice without either edit
+ * having been silently discarded. A Build log page's `moves[]` feed is
+ * carved out of that whole-page check
  * (FR-8, Task 14): if local and remote each appended moves the other
  * lacks, `pullCollection` merges the union of both `moves[]` — deduplicated
  * by move id — into local instead, ahead of the conflict check, so a
@@ -105,6 +113,7 @@ export class SyncEngine {
   private readonly pullIntervalMs: number;
   private readonly retryBaseMs: number;
   private readonly retryMaxMs: number;
+  private readonly pageConflictRepository: PageConflictRepository;
 
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
   private pullTimer: ReturnType<typeof setInterval> | undefined;
@@ -144,6 +153,8 @@ export class SyncEngine {
     this.pullIntervalMs = deps.pullIntervalMs ?? DEFAULT_PULL_INTERVAL_MS;
     this.retryBaseMs = deps.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
     this.retryMaxMs = deps.retryMaxMs ?? DEFAULT_RETRY_MAX_MS;
+    this.pageConflictRepository =
+      deps.pageConflictRepository ?? new PageConflictRepository({ storage: deps.local });
   }
 
   /** True while `start()` has run and `stop()` hasn't cancelled it since. */
@@ -242,10 +253,17 @@ export class SyncEngine {
           checkpoint !== undefined &&
           detectConflict(local as unknown as Page, record as unknown as Page, checkpoint)
         ) {
-          // Same-page conflict (FR-9): both sides changed since the last
-          // synced checkpoint. Stop here rather than overwriting local with
-          // remote — Task 12 hands this to a preserve-both resolution path
-          // instead of this no-op.
+          // Same-page conflict (FR-9, FR-10): both sides changed since the
+          // last synced checkpoint. Leave local untouched rather than
+          // overwriting it with remote, and record both versions via
+          // PageConflictRepository (Task 12) so neither edit is silently
+          // discarded — a later resolution step (Task 15) picks this up.
+          await this.pageConflictRepository.save({
+            id: record.id,
+            local: local as unknown as Page,
+            remote: record as unknown as Page,
+            detectedAt: this.now(),
+          });
           continue;
         }
       }

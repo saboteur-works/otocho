@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SyncEngine } from "./sync-engine";
+import { PageConflictRepository } from "./page-conflict-repository";
 
 /** Minimal local {@link StoragePort} stand-in — mirrors
  * `apps/app/src/testing/memory-storage.ts`'s `MemoryStorage` shape, kept
@@ -172,6 +173,49 @@ describe("SyncEngine", () => {
 
       const localRecord = await local.get(COLLECTION, "p1");
       expect(localRecord).toEqual(record("p1", "2024-06-01T00:00:00.000Z"));
+    });
+  });
+
+  describe("pullCollection — preserve both versions on conflict (FR-10, Task 12)", () => {
+    it("records a pending conflict with both versions, recoverable independently of local storage", async () => {
+      const conflictRepo = new PageConflictRepository({ storage: local });
+      const conflictEngine = new SyncEngine({ local, remote, pageConflictRepository: conflictRepo });
+
+      await remote.put(COLLECTION, record("p1", "2024-01-01T00:00:00.000Z"));
+      await conflictEngine.pullCollection(COLLECTION);
+
+      const localBeforeConflict = record("p1", "2024-02-01T00:00:00.000Z");
+      await local.put(COLLECTION, localBeforeConflict);
+      const remoteAtConflict = record("p1", "2024-03-01T00:00:00.000Z");
+      await remote.put(COLLECTION, remoteAtConflict);
+
+      await conflictEngine.pullCollection(COLLECTION);
+
+      // Local was left untouched by the conflict...
+      const localRecord = await local.get(COLLECTION, "p1");
+      expect(localRecord).toEqual(localBeforeConflict);
+
+      // ...and the conflict record recovers both the local and remote
+      // versions, so neither edit was silently dropped.
+      const conflict = await conflictRepo.get("p1");
+      expect(conflict).not.toBeNull();
+      expect(conflict?.local).toEqual(localBeforeConflict);
+      expect(conflict?.remote).toEqual(remoteAtConflict);
+      expect(typeof conflict?.detectedAt).toBe("string");
+    });
+
+    it("defaults to a PageConflictRepository over local when none is provided", async () => {
+      await remote.put(COLLECTION, record("p1", "2024-01-01T00:00:00.000Z"));
+      await engine.pullCollection(COLLECTION);
+
+      await local.put(COLLECTION, record("p1", "2024-02-01T00:00:00.000Z"));
+      await remote.put(COLLECTION, record("p1", "2024-03-01T00:00:00.000Z"));
+
+      await engine.pullCollection(COLLECTION);
+
+      const conflicts = await new PageConflictRepository({ storage: local }).list();
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0].id).toBe("p1");
     });
   });
 

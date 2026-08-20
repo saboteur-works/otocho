@@ -21,3 +21,4 @@ export * from "./dropbox-connection";
 export * from "./dropbox-connection-repository";
 export * from "./sync-engine";
 export * from "./sync-conflict";
+export * from "./page-conflict-repository";
